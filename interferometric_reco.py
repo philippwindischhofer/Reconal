@@ -12,7 +12,7 @@ def worker_rz(wargs):
     outpath = os.path.join(outdir, f"{basename}_rz.pkl")
     print(f"Reconstructing {eventpath} -> {outpath}")
 
-    channels_to_include = [0, 1, 3]
+    channels_to_include = [0, 1, 2, 3]
     channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
     cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
 
