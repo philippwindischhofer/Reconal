@@ -12,7 +12,7 @@ def show_interferometric_reco(recopath, outpath,
     with open(recopath, 'rb') as recofile:
         reco = pickle.load(recofile)
 
-    intmap = reco["intmap"]
+    intmap = reco
 
     # Figure out how to plot this map:
     plot_axes = []
@@ -32,10 +32,11 @@ def show_interferometric_reco(recopath, outpath,
     intmap_to_plot = np.squeeze(intmap["map"])
 
     figsize = (4.6, 4)
-    if slice_axis == "z":
-        aspect = 1.0
-    else:
-        aspect = 2.0
+    # if slice_axis == "z":
+    #     aspect = 1.0
+    # else:
+    #     aspect = 2.0
+    aspect = "auto"
     
     fig = plt.figure(figsize = figsize, layout = "constrained")
     gs = GridSpec(1, 1, figure = fig)
@@ -61,10 +62,6 @@ def show_interferometric_reco(recopath, outpath,
     ax.set_ylabel(f"{axis_b} [m]", fontsize = fs)
     ax.tick_params(axis = "y", direction = "in", left = True, right = True, labelsize = fs)
     ax.tick_params(axis = "x", direction = "in", bottom = True, top = True, labelsize = fs)
-
-    event_number = reco["event"]["meta"]["event"]
-    run_number = reco["event"]["meta"]["run"]
-    ax.set_title(f"Run {run_number}, Event {event_number}", fontsize = fs)
 
     ax.text(0.05, 0.92, f"{slice_axis} = {slice_val * defs.cvac:.1f} m", transform = ax.transAxes, fontsize = fs)
     

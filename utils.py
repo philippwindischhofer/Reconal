@@ -34,7 +34,7 @@ def resample(tvals, sig, target_dt):
     target_sig = np.interp(target_tvals, os_tvals, os_sig)
     return target_tvals, target_sig
 
-def corr_score_batched(sig_a, sig_b, tvals_a, tvals_b, t_ab, upsample = 5, batch_size = 1000):
+def corr_score_batched(sig_a, sig_b, tvals_a, tvals_b, t_ab, upsample = 2, batch_size = 1000):
     num_batches = math.ceil(len(t_ab) / batch_size)    
     t_ab_batches = np.array_split(t_ab, num_batches)
     scores = [corr_score(sig_a, sig_b, tvals_a, tvals_b, t_ab_batch, upsample = upsample) for t_ab_batch in t_ab_batches]

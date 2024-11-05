@@ -12,7 +12,7 @@ def worker_rz(wargs):
     outpath = os.path.join(outdir, f"{basename}_rz.pkl")
     print(f"Reconstructing {eventpath} -> {outpath}")
 
-    channels_to_include = [0, 1, 2, 3]
+    channels_to_include = [0, 1, 3]
     channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
     cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
 
@@ -26,15 +26,18 @@ def worker_rz(wargs):
     PA_string_pos[2] = 0.0
     
     # pick some reasonable domain
-    z_range = (-800, 150)
-    r_max = 1500
+    z_range = (-500, 150)
+    r_max = 100
     
     coord_start = [PA_string_pos[0],         PA_string_pos[1], z_range[0]]
     coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_range[1]]
     
-    reco_utils.interferometric_reco(channel_signals, channel_times, outpath, mappath,
-                                    coord_start = coord_start, coord_end = coord_end, num_pts = [res, 1, res],
-                                    channels_to_include = channels_to_include, channel_positions = channel_positions, cable_delays = cable_delays)
+    reco = reco_utils.interferometric_reco(channel_signals, channel_times, outpath, mappath,
+                                           coord_start = coord_start, coord_end = coord_end, num_pts = [res, 1, res],
+                                           channels_to_include = channels_to_include, channel_positions = channel_positions, cable_delays = cable_delays)
+
+    with open(outpath, 'wb') as outfile:
+        pickle.dump(reco, outfile)
 
 # def worker_xy(wargs):
 #     eventpath = wargs["eventpath"]
@@ -74,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument("--maps", action = "store", dest = "mappath")
     parser.add_argument("--outdir", action = "store", dest = "outdir")
     parser.add_argument("--workers", action = "store", type = int, dest = "num_workers", default = 4)
-    parser.add_argument("--resolution", action = "store", type=int, dest = "resolution", default = 1000)
+    parser.add_argument("--resolution", action = "store", type=int, dest = "resolution", default = 500)
     parser.add_argument("--rz", action = "store_true", dest = "do_rz", default = False)
     parser.add_argument("--xy", action = "store_true", dest = "do_xy", default = False)
     args = parser.parse_args()
