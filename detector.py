@@ -25,3 +25,13 @@ class Detector:
                     cable_delays[channel] = entry["cab_time_delay"]
 
         return cable_delays
+
+    def get_device_position(self, station_id, devices):
+        device_positions = {}
+
+        for device in devices:
+            for entry_id, entry in self.data["devices"].items():
+                if entry["station_id"] == station_id and entry["device_id"] == device:
+                    device_positions[device] = [entry["ant_position_x"] / defs.cvac, entry["ant_position_y"] / defs.cvac, entry["ant_position_z"] / defs.cvac]
+
+        return device_positions

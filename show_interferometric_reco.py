@@ -1,13 +1,14 @@
 import argparse, pickle, os, defs, utils
 import numpy as np
+from detector import Detector
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-def show_interferometric_reco(recopath, outpath,
-                              epilog = None, show_surface = False, show_arrival = False, fs = 13,
-                              show_maxcorr_point = False, autocolor = False):
+def show_interferometric_reco(recopath, outpath, detector,
+                              epilog = None, show_surface = False, fs = 13,
+                              show_detector = True, show_maxcorr_point = False, autocolor = False):
 
     with open(recopath, 'rb') as recofile:
         reco = pickle.load(recofile)
@@ -64,6 +65,12 @@ def show_interferometric_reco(recopath, outpath,
     ax.tick_params(axis = "x", direction = "in", bottom = True, top = True, labelsize = fs)
 
     ax.text(0.05, 0.92, f"{slice_axis} = {slice_val * defs.cvac:.1f} m", transform = ax.transAxes, fontsize = fs)
+
+    if show_detector:
+       pulser_pos = det.get_device_position(station_id = 11, devices = [1])
+       pulser_r = np.sqrt(pulser_pos[1][0]**2 + pulser_pos[1][1]**2) * defs.cvac
+       pulser_z = pulser_pos[1][2] * defs.cvac
+       ax.scatter(pulser_r, pulser_z)
     
     if show_surface:
         ax.axhline(0.0, ls = "dashed", color = "gray")
@@ -85,10 +92,12 @@ if __name__ == "__main__":
     parser.add_argument("--recos", nargs = "+", action = "store", dest = "recopaths")
     parser.add_argument("--outdir", action = "store", dest = "outdir")
     parser.add_argument("--autocolor", action = "store_true", dest = "autocolor", default = False)
+    parser.add_argument("--detector", action = "store", dest = "detectorpath")
     args = parser.parse_args()
 
     outdir = args.outdir
     recopaths = args.recopaths
+    det = Detector(args.detectorpath)
     
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -96,4 +105,4 @@ if __name__ == "__main__":
     for recopath in recopaths:
         outpath = os.path.join(outdir,
                                os.path.splitext(os.path.basename(recopath))[0] + ".pdf")
-        show_interferometric_reco(recopath, outpath, autocolor = args.autocolor)
+        show_interferometric_reco(recopath, outpath, detector = det, autocolor = args.autocolor)

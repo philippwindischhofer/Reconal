@@ -3,8 +3,7 @@ import numpy as np
 from propagation import TravelTimeCalculator
 
 def calc_corr_score(channel_signals, channel_times, pts, ttcs, channel_pairs_to_include, channel_positions, cable_delays,
-                    comps = ["direct_ice"]):
-    # comps = ["direct_ice", "direct_air", "reflected"]):
+                    comps = ["direct_ice", "direct_air", "reflected"]):
     
     scores = []
     for (ch_a, ch_b) in channel_pairs_to_include:
