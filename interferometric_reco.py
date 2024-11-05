@@ -12,7 +12,7 @@ def worker_rz(wargs):
     outpath = os.path.join(outdir, f"{basename}_rz.pkl")
     print(f"Reconstructing {eventpath} -> {outpath}")
 
-    channels_to_include = [0, 1, 2, 3]
+    channels_to_include = [0, 1, 2, 3, 6, 7]
     channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
     cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
 
@@ -20,14 +20,14 @@ def worker_rz(wargs):
         event = pickle.load(eventfile)
         channel_signals = event["signals"]
         channel_times = event["times"]
-    
+        
     # center reconstruction map around PA
-    PA_string_pos = channel_positions[0]
+    PA_string_pos = channel_positions[1]
     PA_string_pos[2] = 0.0
     
     # pick some reasonable domain
     z_range = (-500, 150)
-    r_max = 100
+    r_max = 1000
     
     coord_start = [PA_string_pos[0],         PA_string_pos[1], z_range[0]]
     coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_range[1]]
