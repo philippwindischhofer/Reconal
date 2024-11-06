@@ -1,7 +1,7 @@
 import numpy as np
 import defs
 
-def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", vmin = None, vmax = None, fs = 13):
+def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", vmin = None, vmax = None, fs = 13, symcolor = True):
 
     intmap_to_plot = np.squeeze(intmap["map"])
     
@@ -11,8 +11,9 @@ def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", vmin = N
     if vmax is None:
         vmax = np.max(intmap_to_plot)
 
-    cscale = max(abs(vmin), abs(vmax))
-    vmin, vmax = -cscale, cscale
+    if symcolor:
+        cscale = max(abs(vmin), abs(vmax))
+        vmin, vmax = -cscale, cscale
 
     im = ax.imshow(np.flip(np.transpose(intmap_to_plot), axis = 0),
                    extent = [intmap[axis_a][0] * defs.cvac, intmap[axis_a][-1] * defs.cvac,
