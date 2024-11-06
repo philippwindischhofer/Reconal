@@ -100,7 +100,7 @@ def worker_ang(wargs):
 
     azimuth_range = (-np.pi, np.pi)
     elevation_range = (-np.pi/2, np.pi/2)
-    radius = 10 / defs.cvac
+    radius = 38 / defs.cvac
     origin_xyz = channel_positions[0]  # use PA CH0- as origin of the coordinate system
 
     reco = reco_utils.interferometric_reco_ang(channel_signals, channel_times, mappath,

@@ -75,7 +75,7 @@ def build_interferometric_map_ang(channel_signals, channel_times, channel_pairs_
     intmap = calc_corr_score(channel_signals, channel_times, pts, ttcs, channel_pairs_to_include,
                              channel_positions = channel_positions, cable_delays = cable_delays)
     assert len(intmap) == len(pts)
-    intmap = np.reshape(intmap, num_pts, order = "C")
+    intmap = np.reshape(intmap, (num_pts_elevation, num_pts_azimuth), order = "C")
 
     return elevation_vals, azimuth_vals, intmap
 
@@ -94,6 +94,7 @@ def interferometric_reco_ang(channel_signals, channel_times, mappath,
     reco_event = {
         "elevation": elevation_vals,
         "azimuth": azimuth_vals,
+        "radius": rad,
         "map": intmap
     }
     
