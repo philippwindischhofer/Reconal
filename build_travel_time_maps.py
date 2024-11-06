@@ -3,7 +3,7 @@ from propagation import TravelTimeCalculator
 from detector import Detector
 import numpy as np
 
-def build_travel_time_maps(outpath, channel_positions, z_range = (-800, 150), r_max = 1500, num_pts_z = 1000, num_pts_r = 1000,
+def build_travel_time_maps(outpath, channel_positions, z_range = (-650, 150), r_max = 1100, num_pts_z = 1000, num_pts_r = 1000,
                            ior_model = defs.ior_exp3):
 
     z_range_map = (z_range[0] - 1, z_range[1] + 1)
