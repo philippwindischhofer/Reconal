@@ -1,4 +1,4 @@
-import argparse, pickle, defs, utils, reco_utils, os
+import argparse, pickle, defs, utils, reco_utils, os, preprocessing
 import numpy as np
 from detector import Detector
 
@@ -8,6 +8,7 @@ def worker_rz(wargs):
     mappath = wargs["mappath"]
     res = wargs["resolution"]
     det = wargs["detector"]
+    do_envelope = wargs["envelope"]
 
     basename = os.path.splitext(os.path.basename(eventpath))[0]
     outpath = os.path.join(outdir, f"{basename}_rz.pkl")
@@ -21,14 +22,20 @@ def worker_rz(wargs):
         event = pickle.load(eventfile)
         channel_signals = event["signals"]
         channel_times = event["times"]
+
+    if do_envelope:
+        channel_signals = preprocessing.envelope(channel_signals)
         
     # center reconstruction map around PA
     PA_string_pos = channel_positions[1]
     PA_string_pos[2] = 0.0
     
     # pick some reasonable domain
-    z_range = (-500, 150)
-    r_max = 1000
+    # z_range = (-500, 150)
+    # r_max = 1000
+    
+    z_range = (-300, -230)
+    r_max = 250
     
     coord_start = [PA_string_pos[0],         PA_string_pos[1], z_range[0]]
     coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_range[1]]
@@ -46,26 +53,33 @@ def worker_xy(wargs):
     mappath = wargs["mappath"]
     res = wargs["resolution"]
     det = wargs["detector"]
+    do_envelope = wargs["envelope"]
 
     with open(eventpath, 'rb') as eventfile:
         event = pickle.load(eventfile)
         channel_signals = event["signals"]
         channel_times = event["times"]
 
+    if do_envelope:
+        channel_signals = preprocessing.envelope(channel_signals)
+        
     basename = os.path.splitext(os.path.basename(eventpath))[0]
     
     outpath = os.path.join(outdir, f"{basename}_xy.pkl")
     print(f"Reconstructing {eventpath} -> {outpath}")
     
-    x_range = (0, 150)
-    y_range = (-150, 0)
+    x_range = (-250, 250)
+    y_range = (-250, 250)
+
+    # x_range = (0, 150)
+    # y_range = (-150, -50)
 
     z_slice = -80 / defs.cvac
     
     coord_start = [x_range[0], y_range[0], z_slice]
     coord_end =   [x_range[1], y_range[1], z_slice]
     
-    channels_to_include = [0, 1, 2, 3, 22, 23]
+    channels_to_include = [0, 1, 2, 3, 6, 7, 22, 23]
     channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
     cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
  
@@ -83,23 +97,31 @@ def worker_ang(wargs):
     mappath = wargs["mappath"]
     res = wargs["resolution"]
     det = wargs["detector"]
+    do_envelope = wargs["envelope"]
 
     with open(eventpath, 'rb') as eventfile:
         event = pickle.load(eventfile)
         channel_signals = event["signals"]
         channel_times = event["times"]
 
+    if do_envelope:
+        channel_signals = preprocessing.envelope(channel_signals)
+        
     basename = os.path.splitext(os.path.basename(eventpath))[0]
 
     outpath = os.path.join(outdir, f"{basename}_ang.pkl")
     print(f"Reconstructing {eventpath} -> {outpath}")
 
-    channels_to_include = [0, 1, 2, 3, 22, 23]
+    channels_to_include = [0, 1, 2, 3, 6, 7, 22, 23]
     channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
     cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
 
     azimuth_range = (-np.pi, np.pi)
     elevation_range = (-np.pi/2, np.pi/2)
+
+    # azimuth_range = (-1.5, -0.5)
+    # elevation_range = (0.3, 0.6)
+    
     radius = 38 / defs.cvac
     origin_xyz = channel_positions[0]  # use PA CH0- as origin of the coordinate system
 
@@ -120,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--outdir", action = "store", dest = "outdir")
     parser.add_argument("--workers", action = "store", type = int, dest = "num_workers", default = 4)
     parser.add_argument("--resolution", action = "store", type=int, dest = "resolution", default = 500)
+    parser.add_argument("--envelope", action = "store_true", dest = "do_envelope", default = False)
     parser.add_argument("--rz", action = "store_true", dest = "do_rz", default = False)
     parser.add_argument("--xy", action = "store_true", dest = "do_xy", default = False)
     parser.add_argument("--ang", action = "store_true", dest = "do_ang", default = False)
@@ -136,7 +159,8 @@ if __name__ == "__main__":
         
     from multiprocessing import Pool
     
-    wargs = [{"eventpath": eventpath, "outdir": outdir, "mappath": mappath, "resolution": args.resolution, "detector": det} for eventpath in eventpaths]
+    wargs = [{"eventpath": eventpath, "outdir": outdir, "mappath": mappath,
+              "resolution": args.resolution, "detector": det, "envelope": args.do_envelope} for eventpath in eventpaths]
 
     if args.do_rz:
         with Pool(num_workers) as p:
