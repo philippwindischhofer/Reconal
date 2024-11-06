@@ -21,7 +21,7 @@ def calc_corr_score(channel_signals, channel_times, pts, ttcs, channel_pairs_to_
     
     return np.mean(scores, axis = 0)
 
-def build_interferometric_map_2d(channel_signals, channel_times, channel_pairs_to_include, channel_positions, cable_delays,
+def build_interferometric_map_3d(channel_signals, channel_times, channel_pairs_to_include, channel_positions, cable_delays,
                                  coord_start, coord_end, num_pts, ttcs):
 
     x_vals = np.linspace(coord_start[0], coord_end[0], num_pts[0])
@@ -39,15 +39,14 @@ def build_interferometric_map_2d(channel_signals, channel_times, channel_pairs_t
     return x_vals, y_vals, z_vals, intmap
 
 # all coordinates and coordinate ranges are given in natural feet
-def interferometric_reco(channel_signals, channel_times, outpath, mappath,
-                         coord_start, coord_end, num_pts,
-                         channels_to_include, channel_positions, cable_delays):
+def interferometric_reco_3d(channel_signals, channel_times, mappath,
+                            coord_start, coord_end, num_pts,
+                            channels_to_include, channel_positions, cable_delays):
 
     ttcs = utils.load_ttcs(mappath, channels_to_include)
-        
-    # build reconstruction map in the xz-plane
+    
     channel_pairs_to_include = list(itertools.combinations(channels_to_include, 2))
-    x_vals, y_vals, z_vals, intmap = build_interferometric_map_2d(channel_signals, channel_times, channel_pairs_to_include,
+    x_vals, y_vals, z_vals, intmap = build_interferometric_map_3d(channel_signals, channel_times, channel_pairs_to_include,
                                                                   channel_positions = channel_positions, cable_delays = cable_delays,
                                                                   coord_start = coord_start, coord_end = coord_end, num_pts = num_pts,
                                                                   ttcs = ttcs)
@@ -59,4 +58,43 @@ def interferometric_reco(channel_signals, channel_times, outpath, mappath,
         "map": intmap
     }
 
+    return reco_event
+
+def build_interferometric_map_ang(channel_signals, channel_times, channel_pairs_to_include, channel_positions, cable_delays,
+                                  rad, origin_xyz, elevation_range, azimuth_range, num_pts_elevation, num_pts_azimuth, ttcs):
+
+    elevation_vals = np.linspace(*elevation_range, num_pts_elevation)
+    azimuth_vals = np.linspace(*azimuth_range, num_pts_azimuth)
+
+    ee, aa = np.meshgrid(elevation_vals, azimuth_vals)
+    # ang_pts = np.stack([ee.flatten(), aa.flatten()], axis = -1)
+
+    # convert to cartesian points
+    pts = utils.ang_to_cart(ee.flatten(), aa.flatten(), radius = rad, origin_xyz = origin_xyz)
+
+    intmap = calc_corr_score(channel_signals, channel_times, pts, ttcs, channel_pairs_to_include,
+                             channel_positions = channel_positions, cable_delays = cable_delays)
+    assert len(intmap) == len(pts)
+    intmap = np.reshape(intmap, num_pts, order = "C")
+
+    return elevation_vals, azimuth_vals, intmap
+
+def interferometric_reco_ang(channel_signals, channel_times, mappath,
+                             rad, origin_xyz, elevation_range, azimuth_range, num_pts_elevation, num_pts_azimuth,
+                             channels_to_include, channel_positions, cable_delays):
+
+    ttcs = utils.load_ttcs(mappath, channels_to_include)
+
+    channel_pairs_to_include = list(itertools.combinations(channels_to_include, 2))
+    elevation_vals, azimuth_vals, intmap = build_interferometric_map_ang(channel_signals, channel_times, channel_pairs_to_include,
+                                                                         channel_positions = channel_positions, cable_delays = cable_delays,
+                                                                         rad = rad, origin_xyz = origin_xyz, elevation_range = elevation_range, azimuth_range = azimuth_range,
+                                                                         num_pts_elevation = num_pts_elevation, num_pts_azimuth = num_pts_azimuth, ttcs = ttcs)
+
+    reco_event = {
+        "elevation": elevation_vals,
+        "azimuth": azimuth_vals,
+        "map": intmap
+    }
+    
     return reco_event

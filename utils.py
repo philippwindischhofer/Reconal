@@ -80,3 +80,22 @@ def get_maxcorr_point(intmap):
                      "z": intmap["z"][maxind[2]]}
 
     return maxcorr_point
+
+def ang_to_cart(elevation, azimuth, radius, origin_xyz):
+
+    xx = radius * np.cos(elevation) * np.cos(azimuth)
+    yy = radius * np.cos(elevation) * np.sin(azimuth)
+    zz = radius * np.sin(elevation)
+
+    xyz = np.stack([xx, yy, zz], axis = -1) + origin_xyz
+    return xyz
+
+def cart_to_ang(xyz, origin_xyz):
+
+    xyz_rel = xyz - origin_xyz
+    
+    r_xy = np.linalg.norm(xyz_rel[:,:2], axis = 1)
+    azimuth = np.arctan2(xyz_rel[:,1], xyz_rel[:,0])
+    elevation = np.arctan2(xyz_rel[:,2], r_xy)
+
+    return elevation, azimuth
