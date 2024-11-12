@@ -2,9 +2,12 @@ import json, defs
 
 class Detector:
 
-    def __init__(self, json_path, var = "nominal"):
+    def __init__(self, json_path, var = None):
         with open(json_path, 'r') as infile:
-            self.data = json.load(infile)[var]
+            if var is not None:
+                self.data = json.load(infile)[var]
+            else:
+                self.data = json.load(infile)
 
     def get_channel_positions(self, station_id, channels):
         channel_positions = {}
