@@ -13,6 +13,6 @@ python -m pip install -r requirements.txt
 ## Example reconstructions
 
 <p align="center">
-  <img src="xy.png" width="350">
-  <img src="ang.png" width="350">
+  <img src="xy.png" height="300">
+  <img src="ang.png" height="300">
 </p>
