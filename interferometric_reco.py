@@ -1,4 +1,4 @@
-import argparse, pickle, defs, utils, reco_utils, os, preprocessing
+import argparse, pickle, defs, utils, reco_utils, os, preprocessing, time
 import numpy as np
 from detector import Detector
 
@@ -31,18 +31,23 @@ def worker_rz(wargs):
     PA_string_pos[2] = 0.0
     
     # pick some reasonable domain
-    # z_range = (-500, 150)
-    # r_max = 1000
+    z_range = (-500, 150)
+    r_max = 1000
     
-    z_range = (-300, -230)
-    r_max = 250
+    # z_range = (-300, -230)
+    # r_max = 250
     
     coord_start = [PA_string_pos[0],         PA_string_pos[1], z_range[0]]
     coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_range[1]]
-    
-    reco = reco_utils.interferometric_reco_3d(channel_signals, channel_times, mappath,
+
+    ttcs = utils.load_ttcs(mappath, channels_to_include)
+
+    start = time.time()
+    reco = reco_utils.interferometric_reco_3d(ttcs, channel_signals, channel_times, mappath,
                                               coord_start = coord_start, coord_end = coord_end, num_pts = [res, 1, res],
                                               channels_to_include = channels_to_include, channel_positions = channel_positions, cable_delays = cable_delays)
+    end = time.time()
+    print(f"Reconstructed in {end - start:.2f} sec")
 
     with open(outpath, 'wb') as outfile:
         pickle.dump(reco, outfile)
@@ -82,11 +87,16 @@ def worker_xy(wargs):
     channels_to_include = [0, 1, 2, 3, 6, 7, 22, 23]
     channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
     cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
- 
-    reco = reco_utils.interferometric_reco_3d(channel_signals, channel_times, mappath,
+
+    ttcs = utils.load_ttcs(mappath, channels_to_include)
+
+    start = time.time()
+    reco = reco_utils.interferometric_reco_3d(ttcs, channel_signals, channel_times, mappath,
                                               coord_start = coord_start, coord_end = coord_end, num_pts = [res, res, 1],
                                               channels_to_include = channels_to_include,
                                               channel_positions = channel_positions, cable_delays = cable_delays)
+    end = time.time()
+    print(f"Reconstructed in {end - start:.2f} sec")
     
     with open(outpath, 'wb') as outfile:
         pickle.dump(reco, outfile)
@@ -125,10 +135,15 @@ def worker_ang(wargs):
     radius = 38 / defs.cvac
     origin_xyz = channel_positions[0]  # use PA CH0- as origin of the coordinate system
 
-    reco = reco_utils.interferometric_reco_ang(channel_signals, channel_times, mappath,
+    ttcs = utils.load_ttcs(mappath, channels_to_include)
+
+    start = time.time()
+    reco = reco_utils.interferometric_reco_ang(ttcs, channel_signals, channel_times, mappath,
                                                rad = radius, origin_xyz = origin_xyz, elevation_range = elevation_range, azimuth_range = azimuth_range,
                                                num_pts_elevation = res, num_pts_azimuth = res, channels_to_include = channels_to_include,
                                                channel_positions = channel_positions, cable_delays = cable_delays)
+    end = time.time()
+    print(f"Reconstructed in {end - start:.2f} sec")
     
     with open(outpath, 'wb') as outfile:
         pickle.dump(reco, outfile)
