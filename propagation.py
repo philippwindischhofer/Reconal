@@ -108,20 +108,27 @@ class TravelTimeCalculator:
 
         self._build_tangent_vectors()
 
+    def get_ind(self, coord):
+        return np.transpose(self._coord_to_pixel(coord))        
+        
     def get_travel_time(self, coord, comp = "direct_ice"):
 
         if comp not in self.travel_time_maps:
             raise RuntimeError(f"Error: map for component '{comp}' not available!")
-        
-        ind = np.transpose(self._coord_to_pixel(coord))
+
+        ind = self.get_ind(coord)
+
         return self.travel_time_maps[comp][*ind]
 
+    def get_travel_time_ind(self, ind, comp = "direct_ice"):
+        return self.travel_time_maps[comp][*ind]
+    
     def get_tangent_vector(self, coord, comp = "direct_ice"):
 
         if comp not in self.travel_time_maps:
             raise RuntimeError(f"Error: map for component '{comp}' not available!")
 
-        ind_r, ind_z, _ = np.transpose(self._coord_to_pixel(coord))
+        ind_r, ind_z, _ = self.get_ind(coord)
         return self.tangent_vectors[comp][ind_r, ind_z]
     
     def _coord_to_pykonal(self, coord):

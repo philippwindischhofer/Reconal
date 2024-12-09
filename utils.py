@@ -34,42 +34,11 @@ def resample(tvals, sig, target_dt):
     target_sig = np.interp(target_tvals, os_tvals, os_sig)
     return target_tvals, target_sig
 
-def corr_score_batched(sig_a, sig_b, tvals_a, tvals_b, t_ab, upsample = 2, batch_size = 500):
-    num_batches = math.ceil(len(t_ab) / batch_size)    
-    t_ab_batches = np.array_split(t_ab, num_batches)
-    scores = [corr_score(sig_a, sig_b, tvals_a, tvals_b, t_ab_batch, upsample = upsample) for t_ab_batch in t_ab_batches]
-    return np.concatenate(scores, axis = 0)
-
-def corr_score(sig_a, sig_b, tvals_a, tvals_b, t_ab, upsample = 10):
-
-    # upsample both signals onto a fine grid
-    target_dt = min(tvals_a[1] - tvals_a[0], tvals_b[1] - tvals_b[0]) / upsample
-    
-    sig_a_tvals_rs, sig_a_rs = resample(tvals_a, sig_a, target_dt)
-    sig_b_tvals_rs, sig_b_rs = resample(tvals_b, sig_b, target_dt)
-    
-    eval_t = sig_a_tvals_rs - np.tile(t_ab, reps = (len(sig_a_tvals_rs), 1)).transpose()
-    sig_b_rs_algnd = np.interp(eval_t, sig_b_tvals_rs, sig_b_rs, left = 0.0, right = 0.0)
-
-    cov = np.mean(np.multiply(sig_a_rs, sig_b_rs_algnd), axis = 1) - np.mean(sig_b_rs_algnd, axis = 1) * np.mean(sig_a_rs)
-    corr = cov / (np.std(sig_a_rs) * np.std(sig_b_rs_algnd, axis = 1))
-
-    return corr
-
 def to_antenna_rz_coordinates(pos, antenna_pos):
     local_r = np.linalg.norm(pos[:, :2] - antenna_pos[:2], axis = 1)
     local_z = pos[:, 2]    
     return np.stack([local_r, local_z], axis = -1)
     
-def calc_relative_time(ch_a, ch_b, src_pos, ttcs, channel_positions, cable_delays, comp = "direct_ice"):
-
-    # Convert to antenna-local (r, z) coordinates
-    src_pos_loc_a = to_antenna_rz_coordinates(src_pos, channel_positions[ch_a])
-    src_pos_loc_b = to_antenna_rz_coordinates(src_pos, channel_positions[ch_b])
-    
-    return ttcs[ch_a].get_travel_time(src_pos_loc_a, comp = comp) - ttcs[ch_b].get_travel_time(src_pos_loc_b, comp = comp) + \
-        cable_delays[ch_a] - cable_delays[ch_b]
-
 def get_maxcorr_point(intmap):
 
     mapdata = intmap["map"]    
