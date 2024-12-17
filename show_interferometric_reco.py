@@ -8,7 +8,7 @@ from matplotlib.gridspec import GridSpec
 
 def show_interferometric_reco(recopath, outpath, detector,
                               epilog = None, show_surface = False, fs = 13,
-                              show_detector = True, show_maxcorr_point = False, autocolor = False):
+                              show_detector = False, show_maxcorr_point = False, autocolor = False):
 
     with open(recopath, 'rb') as recofile:
         reco = pickle.load(recofile)
@@ -67,10 +67,11 @@ def show_interferometric_reco(recopath, outpath, detector,
     ax.text(0.05, 0.92, f"{slice_axis} = {slice_val * defs.cvac:.1f} m", transform = ax.transAxes, fontsize = fs)
 
     if show_detector:
-       pulser_pos = det.get_device_position(station_id = 11, devices = [1])
+       pulser_pos = det.get_device_position(station_id = 11, devices = [1])       
        pulser_r = np.sqrt(pulser_pos[1][0]**2 + pulser_pos[1][1]**2) * defs.cvac
-       pulser_z = pulser_pos[1][2] * defs.cvac
-       ax.scatter(pulser_r, pulser_z)
+       # pulser_z = pulser_pos[1][2] * defs.cvac
+       # ax.scatter(pulser_r, pulser_z)
+       ax.scatter(pulser_pos[1][0] * defs.cvac, pulser_pos[1][1] * defs.cvac, marker = "o", facecolor = "None", edgecolor = "black")
     
     if show_surface:
         ax.axhline(0.0, ls = "dashed", color = "gray")

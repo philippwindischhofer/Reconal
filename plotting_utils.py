@@ -1,7 +1,7 @@
 import numpy as np
 import defs
 
-def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", vmin = None, vmax = None, fs = 13, symcolor = True):
+def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", xlim = None, ylim = None, vmin = None, vmax = None, fs = 13, symcolor = True):
 
     intmap_to_plot = np.squeeze(intmap["map"])
     
@@ -18,8 +18,14 @@ def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", vmin = N
     im = ax.imshow(np.flip(np.transpose(intmap_to_plot), axis = 0),
                    extent = [intmap[axis_a][0] * defs.cvac, intmap[axis_a][-1] * defs.cvac,
                              intmap[axis_b][0] * defs.cvac, intmap[axis_b][-1] * defs.cvac],
-                   cmap = cmap, vmax = vmax, vmin = vmin, aspect = aspect)
+                   cmap = cmap, vmax = vmax, vmin = vmin, aspect = aspect, interpolation = "bicubic")
     
+    if xlim:
+        ax.set_xlim(*xlim)
+
+    if ylim:
+        ax.set_ylim(*ylim)
+
     ax.set_xlabel(f"{axis_a} [m]", fontsize = fs)
     ax.set_ylabel(f"{axis_b} [m]", fontsize = fs)
     ax.tick_params(axis = "y", direction = "in", left = True, right = True, labelsize = fs)
