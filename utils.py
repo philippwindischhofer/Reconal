@@ -43,7 +43,10 @@ def get_maxcorr_point(intmap):
 
     mapdata = intmap["map"]    
     maxind = np.unravel_index(np.argmax(mapdata), mapdata.shape)
-        
+
+    #change to "z", "r" for RZ maps 
+    #change to "elevation", "azimuth" for angular maps
+    
     maxcorr_point = {"x": intmap["x"][maxind[0]],
                      "y": intmap["y"][maxind[1]],
                      "z": intmap["z"][maxind[2]]}
