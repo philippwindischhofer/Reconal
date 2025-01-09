@@ -68,3 +68,14 @@ def cart_to_ang(xyz, origin_xyz):
     elevation = np.arctan2(xyz_rel[:,2], r_xy)
     
     return elevation, azimuth
+
+#for r_xy and z maps with fixed azimuth
+
+def ang2_to_cart(z, r, azimuth, origin_xyz):
+
+    xx = r * np.cos(azimuth)
+    yy = r * np.sin(azimuth)
+    zz = z
+
+    xyz = np.stack([xx, yy, zz], axis = -1) + origin_xyz
+    return xyz
