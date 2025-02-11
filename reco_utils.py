@@ -157,7 +157,7 @@ def interferometric_reco_ang2(ttcs, channel_signals, channel_times, mappath,
                              channels_to_include, channel_positions, cable_delays):
 
     channel_pairs_to_include = list(itertools.combinations(channels_to_include, 2))
-    z_vals, r_vals, intmap = build_interferometric_map_ang(channel_signals, channel_times, channel_pairs_to_include,
+    z_vals, r_vals, intmap = build_interferometric_map_ang2(channel_signals, channel_times, channel_pairs_to_include,
                                                                          channel_positions = channel_positions, cable_delays = cable_delays,
                                                                          azimuth = azimuth, origin_xyz = origin_xyz, z_range = z_range, r_range = r_range,
                                                                          num_pts_z = num_pts_z, num_pts_r = num_pts_r, ttcs = ttcs)
