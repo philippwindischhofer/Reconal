@@ -147,6 +147,47 @@ def worker_ang(wargs):
     
     with open(outpath, 'wb') as outfile:
         pickle.dump(reco, outfile)
+
+#fixed azimuth, varying (r_xy and z)
+def worker_az_RZ(wargs):
+    eventpath = wargs["eventpath"]
+    outdir = wargs["outdir"]
+    mappath = wargs["mappath"]
+    res = wargs["resolution"]
+    det = wargs["detector"]
+    do_envelope = wargs["envelope"]
+
+    with open(eventpath, 'rb') as eventfile:
+        event = pickle.load(eventfile)
+        channel_signals = event["signals"]
+        channel_times = event["times"]
+
+    if do_envelope:
+        channel_signals = preprocessing.envelope(channel_signals)
+        
+    basename = os.path.splitext(os.path.basename(eventpath))[0]
+
+    outpath = os.path.join(outdir, f"{basename}_az_RZ.pkl")
+    print(f"Reconstructing {eventpath} -> {outpath}")
+
+    channels_to_include = [0, 1, 2, 3, 6, 7, 22, 23]
+    channel_positions = det.get_channel_positions(station_id = 11, channels = channels_to_include)
+    cable_delays = det.get_cable_delays(station_id = 11, channels = channels_to_include)
+
+    origin_xyz = channel_positions[0]  # use PA CH0- as origin of the coordinate system
+
+    ttcs = utils.load_ttcs(mappath, channels_to_include)
+    
+    start = time.time()
+    reco = reco_utils.interferometric_reco_ang2(ttcs, channel_signals, channel_times, mappath,
+                                               azimuth = azimuth, origin_xyz = origin_xyz, z_range = z_range, r_range = r_range,
+                                               num_pts_z = res, num_pts_r = res, channels_to_include = channels_to_include,
+                                               channel_positions = channel_positions, cable_delays = cable_delays)
+    end = time.time()
+    print(f"Reconstructed in {end - start:.2f} sec")
+    
+    with open(outpath, 'wb') as outfile:
+        pickle.dump(reco, outfile)
             
 if __name__ == "__main__":
 
