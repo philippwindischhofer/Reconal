@@ -1,0 +1,228 @@
+{
+    "channels": {
+        "0": {
+            "station_id": 14,
+            "channel_id": 0,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -97.0,
+	    "cab_time_delay": 0.0
+        },
+	"1": {
+            "station_id": 14,
+            "channel_id": 1,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -96.0,
+	    "cab_time_delay": 0.0
+	},
+	"2": {
+            "station_id": 14,
+            "channel_id": 2,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -95.0,
+	    "cab_time_delay": 0.0
+	},
+	"3": {
+            "station_id": 14,
+            "channel_id": 3,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -94.0,
+	    "cab_time_delay": 0.0
+	},
+	"4": {
+            "station_id": 14,
+            "channel_id": 5,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -80.0,
+	    "cab_time_delay": 0.0
+	},
+	"5": {
+            "station_id": 14,
+            "channel_id": 6,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -60.0,
+	    "cab_time_delay": 0.0
+	},
+	"6": {
+            "station_id": 14,
+            "channel_id": 7,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -40.0,
+	    "cab_time_delay": 0.0
+	},
+	"7": {
+            "station_id": 14,
+            "channel_id": 20,
+	    "ant_position_x": 0.0,
+	    "ant_position_y": 0.0,
+	    "ant_position_z": -20.0,
+	    "cab_time_delay": 0.0
+	},
+	"8": {
+            "station_id": 14,
+            "channel_id": 9,
+	    "ant_position_x": -21.46,
+	    "ant_position_y": 28.17,
+	    "ant_position_z": -97,
+	    "cab_time_delay": 0.0
+	},
+	"9": {
+            "station_id": 14,
+            "channel_id": 10,
+	    "ant_position_x": -21.46,
+	    "ant_position_y": 28.17,
+	    "ant_position_z": -96,
+	    "cab_time_delay": 0.0
+	},
+	"10": {
+            "station_id": 14,
+            "channel_id": 22,
+	    "ant_position_x": 15.74,
+	    "ant_position_y": 39.03,
+	    "ant_position_z": -97.0,
+	    "cab_time_delay": 0.0
+	},
+	"11": {
+            "station_id": 14,
+            "channel_id": 23,
+	    "ant_position_x": 15.74,
+	    "ant_position_y": 39.03,
+	    "ant_position_z": -96.0,
+	    "cab_time_delay": 0.0
+	},
+	"12": {
+            "station_id": 14,
+            "channel_id": 30,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -80.0,
+	    "cab_time_delay": 0.0
+	},
+	"13": {
+            "station_id": 14,
+            "channel_id": 31,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -75.0,
+	    "cab_time_delay": 0.0
+	},
+	"14": {
+	    "station_id": 14,
+            "channel_id": 32,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -70.0,
+	    "cab_time_delay": 0.0
+	},
+	"15": {
+	    "station_id": 14,
+            "channel_id": 33,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -65.0,
+	    "cab_time_delay": 0.0
+	},
+	"16": {
+	    "station_id": 14,
+            "channel_id": 34,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -60.0,
+	    "cab_time_delay": 0.0
+	},
+	"17": {
+	    "station_id": 14,
+            "channel_id": 35,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -55.0,
+	    "cab_time_delay": 0.0
+	},
+	"18": {
+	    "station_id": 14,
+            "channel_id": 36,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -50.0,
+	    "cab_time_delay": 0.0
+	},
+	"19": {
+	    "station_id": 14,
+            "channel_id": 37,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -45.0,
+	    "cab_time_delay": 0.0
+	},
+	"20": {
+	    "station_id": 14,
+            "channel_id": 38,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -40.0,
+	    "cab_time_delay": 0.0
+	},
+	"21": {
+	    "station_id": 14,
+            "channel_id": 39,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -35.0,
+	    "cab_time_delay": 0.0
+	},
+	"22": {
+	    "station_id": 14,
+            "channel_id": 40,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -30.0,
+	    "cab_time_delay": 0.0
+	},
+	"23": {
+	    "station_id": 14,
+            "channel_id": 41,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -25.0,
+	    "cab_time_delay": 0.0
+	},
+	"24": {
+	    "station_id": 14,
+            "channel_id": 42,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -20.0,
+	    "cab_time_delay": 0.0
+	},
+	"25": {
+	    "station_id": 14,
+            "channel_id": 43,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -15.0,
+	    "cab_time_delay": 0.0
+	},
+	"26": {
+	    "station_id": 14,
+            "channel_id": 44,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -10.0,
+	    "cab_time_delay": 0.0
+	},
+	"27": {
+	    "station_id": 14,
+            "channel_id": 45,
+	    "ant_position_x": -34.93,
+	    "ant_position_y": -5.03,
+	    "ant_position_z": -5.0,
+	    "cab_time_delay": 0.0
+	}
+    }
+}
