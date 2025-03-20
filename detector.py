@@ -1,4 +1,5 @@
 import json, defs
+import numpy as np
 
 class Detector:
 
@@ -15,7 +16,7 @@ class Detector:
         for channel in channels:
             for entry_id, entry in self.data["channels"].items():
                 if entry["station_id"] == station_id and entry["channel_id"] == channel:
-                    channel_positions[channel] = [entry["ant_position_x"] / defs.cvac, entry["ant_position_y"] / defs.cvac, entry["ant_position_z"] / defs.cvac]
+                    channel_positions[channel] = np.array([entry["ant_position_x"] / defs.cvac, entry["ant_position_y"] / defs.cvac, entry["ant_position_z"] / defs.cvac])
 
         return channel_positions
 

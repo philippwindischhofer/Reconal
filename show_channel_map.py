@@ -1,5 +1,11 @@
 import argparse, pickle, defs, os, utils
+import numpy as np
 from detector import Detector
+from plotting_utils import make_direction_plot
+
+def get_azimuth(src_pos, antenna_pos):
+    rel_pos = antenna_pos[:2] - src_pos[:2]
+    return np.arctan2(rel_pos[1], rel_pos[0])
 
 def antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channels_to_include, ref_channel):
 
@@ -37,7 +43,14 @@ def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_incl
     det = Detector(detectorpath)
     channel_positions = det.get_channel_positions(station_id, channels_to_include)
 
-    print(channel_positions)
+    src_pos_xyz = np.array([-50 / defs.cvac, 0.0 / defs.cvac, -5.0 / defs.cvac])
+    elevations_deg, azimuths_deg = antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channels_to_include,
+                                                                  ref_channel = 30)
+
+    channel_labels = [f"CH{channel}" for channel in channels_to_include]
+    
+    outpath = os.path.join(outdir, "channel_map.pdf")
+    make_direction_plot(outpath, elevations_deg, azimuths_deg, labels = channel_labels)
 
 if __name__ == "__main__":
 
