@@ -1,4 +1,4 @@
-import argparse, pickle, defs, os, utils, functools
+import argparse, pickle, defs, os, utils, functools, itertools
 import numpy as np
 from detector import Detector
 from plotting_utils import make_direction_plot, make_xy_plot
@@ -58,18 +58,69 @@ def get_cherenkov_zenith(ior):
 
 def zenith_to_elevation(zenith):
     return np.pi/2 - zenith
+
+def get_rotation_matrix(src_vec, dest_vec):
+    src_vec = src_vec / np.linalg.norm(src_vec)
+    dest_vec = dest_vec / np.linalg.norm(dest_vec)
     
-def show_cone(ax, src_pos_xyz, ior_model = defs.ior_exp3, fs = 13):
-    shallow_ior = ior_model(np.array([src_pos_xyz[2]]))
-    cone_elevation = -np.rad2deg(zenith_to_elevation(get_cherenkov_zenith(shallow_ior)))
-    ax.axhline(cone_elevation, ls = "dashed", color = "gray", zorder = 1, label = "On-cone (vertical shower)")
+    v = np.cross(src_vec, dest_vec)
+    c = np.dot(src_vec, dest_vec)
+    s = np.linalg.norm(v)
+    kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+    rotation_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
+    
+    return rotation_matrix
 
-    az_vals = np.linspace(-np.rad2deg(np.pi), np.rad2deg(np.pi), 1000)
-    upper_vals = np.full_like(az_vals, cone_elevation + 20)
-    lower_vals = np.full_like(az_vals, cone_elevation - 20)
-    ax.fill_between(az_vals, upper_vals, lower_vals, ls = "dashed", color = "gray", alpha = 0.4, zorder = 0,
-                    label = r"Near-vertical showers ($\pm 20\degree$)")
+def get_cone_azimuth_elevation(shower_axis, half_opening_angle, num_pts = 100):
 
+    def _get_azimuth_vec(vec):
+        return get_azimuth(np.zeros_like(vec), vec)
+
+    def _get_elevation_vec(vec):
+        return np.arctan2(vec[2], np.sqrt(np.square(vec[0]) + np.square(vec[1])))
+    
+    vert_shower_axis = np.array([0, 0, 1])
+    rotmat = get_rotation_matrix(vert_shower_axis, shower_axis)
+    
+    # generate cone vectors for vertical shower axis ...
+    az_vals = np.linspace(-np.pi, np.pi, num_pts)
+    on_cone_vert = [np.array([np.cos(az) * np.sin(half_opening_angle),
+                              np.sin(az) * np.sin(half_opening_angle),
+                              np.cos(half_opening_angle)]) for az in az_vals]
+
+    # ... and rotate them to the real shower axis
+    on_cone = [np.dot(rotmat, vec) for vec in on_cone_vert]
+
+    # extract azimuth and elevation for each vector
+    azimuth_vals = np.array([_get_azimuth_vec(vec) for vec in on_cone])
+    elevation_vals = np.array([_get_elevation_vec(vec) for vec in on_cone])
+
+    sorter = np.argsort(azimuth_vals)    
+    return azimuth_vals[sorter].flatten(), elevation_vals[sorter].flatten()
+
+def show_cone(ax, src_pos_xyz, ior_model = defs.ior_exp3, fs = 13, num_shower = 100):
+    shallow_ior = ior_model(np.array([src_pos_xyz[2]]))[0]
+    cone_half_opening_angle = get_cherenkov_zenith(shallow_ior)
+
+    shower_azs = np.random.uniform(-np.pi, np.pi, num_shower)
+    shower_zens = np.random.uniform(0.0, np.deg2rad(25.0), num_shower)
+
+    ax.axhline(np.rad2deg(get_cherenkov_zenith(shallow_ior) - np.pi/2), color = "gray", zorder = 0, lw = 2, ls = "dashed",
+               label = "On cone (vertical shower)")
+    
+    for ind, (shower_az, shower_zen) in enumerate(zip(shower_azs, shower_zens)):
+        shower_axis = np.array([np.sin(shower_zen) * np.cos(shower_az),
+                                np.sin(shower_zen) * np.sin(shower_az),
+                                np.cos(shower_zen)])
+        az_vals, elev_vals = get_cone_azimuth_elevation(shower_axis, cone_half_opening_angle)
+        az_vals = np.rad2deg(az_vals)
+        elev_vals = -np.rad2deg(elev_vals)
+
+        if ind == 0:    
+            ax.plot(az_vals, elev_vals, lw = 0.5, color = "gray", zorder = 0, label = r"On-cone ($\pm 25\degree$ off-vertical showers)")
+        else:
+            ax.plot(az_vals, elev_vals, lw = 0.5, color = "gray", zorder = 0)
+    
     ax.legend(frameon = False, fontsize = fs)
     
 def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_include):
