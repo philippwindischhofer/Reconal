@@ -1,7 +1,7 @@
 import argparse, pickle, defs, os, utils
 import numpy as np
 from detector import Detector
-from plotting_utils import make_direction_plot
+from plotting_utils import make_direction_plot, make_xy_plot
 
 def get_azimuth(src_pos, antenna_pos):
     rel_pos = antenna_pos[:2] - src_pos[:2]
@@ -11,6 +11,7 @@ def antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channel
 
     elevations_deg = []
     azimuths_deg = []
+    travel_times_ns = []
     
     ref_azimuth = get_azimuth(src_pos_xyz, channel_positions[ref_channel])
 
@@ -20,6 +21,8 @@ def antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channel
         src_pos_loc = utils.to_antenna_rz_coordinates(np.array([src_pos_xyz]), channel_positions[channel])
 
         travel_time = ttcs[channel].get_travel_time(src_pos_loc, comp = "direct_ice")
+        travel_times_ns.append(travel_time)
+        
         tangent_vec = ttcs[channel].get_tangent_vector(src_pos_loc, comp = "direct_ice")
 
         assert len(tangent_vec) == 1
@@ -31,27 +34,48 @@ def antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channel
         elevations_deg.append(np.rad2deg(elevation))
         azimuths_deg.append(np.rad2deg(azimuth))
 
-    return elevations_deg, azimuths_deg
+    return elevations_deg, azimuths_deg, travel_times_ns
+
+def show_det_xy_proj(outpath, src_pos, channel_positions, station_id, channels_to_include):
+
+    pos_x = []
+    pos_y = []
+    
+    for channel in channels_to_include:
+        pos = channel_positions[channel]
+        pos_x.append(pos[0] * defs.cvac)
+        pos_y.append(pos[1] * defs.cvac)
+
+    colors = ["black"] * len(pos_x) + ["tab:red"]
+        
+    pos_x.append(src_pos[0] * defs.cvac)
+    pos_y.append(src_pos[1] * defs.cvac)
+    
+    make_xy_plot(outpath, pos_x, pos_y, colors = colors, xlabel = "x [m]", ylabel = "y [m]")
 
 def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_include):
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    ttcs = utils.load_ttcs(mappath, channels_to_include)
-        
     det = Detector(detectorpath)
     channel_positions = det.get_channel_positions(station_id, channels_to_include)
 
     src_pos_xyz = np.array([-50 / defs.cvac, 0.0 / defs.cvac, -5.0 / defs.cvac])
-    elevations_deg, azimuths_deg = antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channels_to_include,
-                                                                  ref_channel = 30)
+    
+    outpath = os.path.join(outdir, "detector.pdf")
+    show_det_xy_proj(outpath, src_pos_xyz, channel_positions, station_id, channels_to_include)
+        
+    ttcs = utils.load_ttcs(mappath, channels_to_include)
 
+    elevations_deg, azimuths_deg, travel_times_ns = antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channels_to_include,
+                                                                                   ref_channel = 30)
+    
     channel_labels = [f"CH{channel}" for channel in channels_to_include]
     
     outpath = os.path.join(outdir, "channel_map.pdf")
-    make_direction_plot(outpath, elevations_deg, azimuths_deg, labels = channel_labels)
-
+    make_direction_plot(outpath, elevations_deg, azimuths_deg, travel_times_ns, obs_label = "Propagation time [ns]", labels = channel_labels)
+    
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
