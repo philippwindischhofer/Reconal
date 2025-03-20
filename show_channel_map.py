@@ -131,7 +131,7 @@ def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_incl
     det = Detector(detectorpath)
     channel_positions = det.get_channel_positions(station_id, channels_to_include)
 
-    src_pos_xyz = np.array([-50 / defs.cvac, 0.0 / defs.cvac, -5.0 / defs.cvac])
+    src_pos_xyz = np.array([-50 / defs.cvac, 15.0 / defs.cvac, -5.0 / defs.cvac])
     
     outpath = os.path.join(outdir, "detector.pdf")
     show_det_xy_proj(outpath, src_pos_xyz, channel_positions, station_id, channels_to_include)
@@ -141,7 +141,7 @@ def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_incl
     elevations_deg, azimuths_deg, travel_times_ns = antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channels_to_include,
                                                                                    ref_channel = 30)
     
-    channel_labels = [f"CH{channel}" for channel in channels_to_include]
+    channel_labels = [f"{-channel_positions[channel][2]*defs.cvac:.0f}m" for channel in channels_to_include]
     
     outpath = os.path.join(outdir, "channel_map.pdf")
     make_direction_plot(outpath, elevations_deg, azimuths_deg, travel_times_ns, obs_label = "Propagation time [ns]",
