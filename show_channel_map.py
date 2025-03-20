@@ -36,22 +36,23 @@ def antenna_locations_to_src_frame(ttcs, src_pos_xyz, channel_positions, channel
 
     return elevations_deg, azimuths_deg, travel_times_ns
 
-def show_det_xy_proj(outpath, src_pos, channel_positions, station_id, channels_to_include):
+def show_det_xy_proj(outpath, src_pos, channel_positions, station_id):
 
-    pos_x = []
-    pos_y = []
-    
-    for channel in channels_to_include:
-        pos = channel_positions[channel]
-        pos_x.append(pos[0] * defs.cvac)
-        pos_y.append(pos[1] * defs.cvac)
+    def _package_channels(channels):           
+        pos_x = []
+        pos_y = []    
+        for channel in channels:
+            pos = channel_positions[channel]
+            pos_x.append(pos[0] * defs.cvac)
+            pos_y.append(pos[1] * defs.cvac)            
+        return (pos_x, pos_y)
 
-    colors = ["black"] * len(pos_x) + ["tab:red"]
-        
-    pos_x.append(src_pos[0] * defs.cvac)
-    pos_y.append(src_pos[1] * defs.cvac)
-    
-    make_xy_plot(outpath, pos_x, pos_y, colors = colors, xlabel = "x [m]", ylabel = "y [m]")
+    labels = ["Station 14", "Dense string", "Source"]
+    data_series = [_package_channels([0, 9, 22]),
+                   _package_channels([30]),
+                   ([src_pos[0] * defs.cvac], [src_pos[1] * defs.cvac])]
+    colors = ["black", "tab:blue", "tab:red"]        
+    make_xy_plot(outpath, data_series, labels, colors, xlabel = "x [m]", ylabel = "y [m]")
 
 def get_cherenkov_zenith(ior):
     return np.arccos(1.0 / ior)
@@ -131,10 +132,10 @@ def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_incl
     det = Detector(detectorpath)
     channel_positions = det.get_channel_positions(station_id, channels_to_include)
 
-    src_pos_xyz = np.array([-50 / defs.cvac, 15.0 / defs.cvac, -5.0 / defs.cvac])
+    src_pos_xyz = np.array([-10 / defs.cvac, 15.0 / defs.cvac, -5.0 / defs.cvac])
     
     outpath = os.path.join(outdir, "detector.pdf")
-    show_det_xy_proj(outpath, src_pos_xyz, channel_positions, station_id, channels_to_include)
+    show_det_xy_proj(outpath, src_pos_xyz, channel_positions, station_id)
         
     ttcs = utils.load_ttcs(mappath, channels_to_include)
 

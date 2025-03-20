@@ -8,23 +8,23 @@ from matplotlib.gridspec import GridSpec
 import matplotlib.colors as colors
 import matplotlib.cm as cmx
 
-def make_xy_plot(outpath, xvals, yvals, colors = ["black"], xlabel = "", ylabel = "", fs = 13):
-    
-    if len(colors) != len(xvals):
-        colors = ["black"] * len(xvals)
-        print("bla")
-    
+def make_xy_plot(outpath, series, labels, colors, xlabel = "", ylabel = "", fs = 13):
+        
     fig = plt.figure(figsize = (5, 5), layout = "constrained")
     gs = GridSpec(1, 1, figure = fig)
     ax = fig.add_subplot(gs[0])
-    
-    ax.scatter(xvals, yvals, color = colors)
+
+    for cur_series, cur_label, cur_color in zip(series, labels, colors):
+        xvals, yvals = cur_series
+        ax.scatter(xvals, yvals, color = cur_color, label = cur_label)
 
     ax.set_xlabel(xlabel, fontsize = fs)
     ax.set_ylabel(ylabel, fontsize = fs)
 
     ax.tick_params(axis = "y", direction = "in", left = True, right = True, labelsize = fs)
     ax.tick_params(axis = "x", direction = "in", bottom = True, top = True, labelsize = fs)        
+
+    ax.legend(frameon = False, fontsize = fs)
     
     fig.savefig(outpath)
     plt.close()
@@ -61,7 +61,8 @@ def make_direction_plot(outpath, elevations, azimuths, obs_values, obs_label = "
     ax.set_ylabel("Elevation [deg]", fontsize = fs)
 
     cur_xlim = ax.get_xlim()
-    ax.set_xlim([cur_xlim[0], cur_xlim[0] + (cur_xlim[1] - cur_xlim[0]) * 1.15])
+    # ax.set_xlim([cur_xlim[0], cur_xlim[0] + (cur_xlim[1] - cur_xlim[0]) * 1.15])
+    ax.set_xlim([-180.0, 180.0])
     
     ax.set_title(plot_title, fontsize = fs)
 
