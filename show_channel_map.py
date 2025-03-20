@@ -1,4 +1,4 @@
-import argparse, pickle, defs, os, utils
+import argparse, pickle, defs, os, utils, functools
 import numpy as np
 from detector import Detector
 from plotting_utils import make_direction_plot, make_xy_plot
@@ -53,6 +53,25 @@ def show_det_xy_proj(outpath, src_pos, channel_positions, station_id, channels_t
     
     make_xy_plot(outpath, pos_x, pos_y, colors = colors, xlabel = "x [m]", ylabel = "y [m]")
 
+def get_cherenkov_zenith(ior):
+    return np.arccos(1.0 / ior)
+
+def zenith_to_elevation(zenith):
+    return np.pi/2 - zenith
+    
+def show_cone(ax, src_pos_xyz, ior_model = defs.ior_exp3, fs = 13):
+    shallow_ior = ior_model(np.array([src_pos_xyz[2]]))
+    cone_elevation = -np.rad2deg(zenith_to_elevation(get_cherenkov_zenith(shallow_ior)))
+    ax.axhline(cone_elevation, ls = "dashed", color = "gray", zorder = 1, label = "On-cone (vertical shower)")
+
+    az_vals = np.linspace(-np.rad2deg(np.pi), np.rad2deg(np.pi), 1000)
+    upper_vals = np.full_like(az_vals, cone_elevation + 20)
+    lower_vals = np.full_like(az_vals, cone_elevation - 20)
+    ax.fill_between(az_vals, upper_vals, lower_vals, ls = "dashed", color = "gray", alpha = 0.4, zorder = 0,
+                    label = r"Near-vertical showers ($\pm 20\degree$)")
+
+    ax.legend(frameon = False, fontsize = fs)
+    
 def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_include):
 
     if not os.path.exists(outdir):
@@ -74,7 +93,8 @@ def show_channel_map(detectorpath, mappath, outdir, station_id, channels_to_incl
     channel_labels = [f"CH{channel}" for channel in channels_to_include]
     
     outpath = os.path.join(outdir, "channel_map.pdf")
-    make_direction_plot(outpath, elevations_deg, azimuths_deg, travel_times_ns, obs_label = "Propagation time [ns]", labels = channel_labels)
+    make_direction_plot(outpath, elevations_deg, azimuths_deg, travel_times_ns, obs_label = "Propagation time [ns]",
+                        labels = channel_labels, epilog = functools.partial(show_cone, src_pos_xyz = src_pos_xyz))
     
 if __name__ == "__main__":
 

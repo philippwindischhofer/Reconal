@@ -30,7 +30,7 @@ def make_xy_plot(outpath, xvals, yvals, colors = ["black"], xlabel = "", ylabel 
     plt.close()
 
 def make_direction_plot(outpath, elevations, azimuths, obs_values, obs_label = "", plot_title = "", labels = [],
-                        show_labels = True, fs = 13, cmap = "plasma", inner_label = "", fitline = None):
+                        show_labels = True, fs = 13, cmap = "plasma", inner_label = "", fitline = None, epilog = None):
 
     fig = plt.figure(figsize = (6, 6), layout = "constrained")
     gs = GridSpec(1, 1, figure = fig)
@@ -55,7 +55,7 @@ def make_direction_plot(outpath, elevations, azimuths, obs_values, obs_label = "
         assert len(labels) == len(elevations)
         
         for label, azimuth, elevation in zip(labels, neg_azimuths, elevations):
-            ax.text(azimuth + 0.8, elevation, label, fontsize = fs - 5, ha = "left", va = "center", color = "gray")
+            ax.text(azimuth + 1.0, elevation, label, fontsize = fs - 5, ha = "left", va = "center", color = "gray")
     
     ax.set_xlabel("Azimuth [deg]", fontsize = fs)
     ax.set_ylabel("Elevation [deg]", fontsize = fs)
@@ -69,6 +69,9 @@ def make_direction_plot(outpath, elevations, azimuths, obs_values, obs_label = "
     
     ax.tick_params(axis = "y", direction = "in", left = True, right = True, labelsize = fs)
     ax.tick_params(axis = "x", direction = "in", bottom = True, top = True, labelsize = fs)        
+
+    if epilog:
+        epilog(ax)
     
     fig.savefig(outpath)
     plt.close()
