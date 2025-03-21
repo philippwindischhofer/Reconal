@@ -45,7 +45,12 @@ class TravelTimeCalculator:
         })
 
     def _build_tangent_vectors(self):
-        for comp_name, comp_map in self.travel_time_maps.items():            
+        for comp_name, comp_map in self.travel_time_maps.items():
+
+            # SKIP REFRACTED RAYS FOR NOW, JUST FOR TESTING
+            if comp_name == "refracted":
+                continue
+            
             grad_r, grad_z = np.gradient(comp_map[:,:,0], self.delta_r, self.delta_z)
             grad_vec = np.stack([grad_r, grad_z], axis = -1)
             self.tangent_vectors[comp_name] = -grad_vec # keep the negative to make it point towards the antenna
@@ -82,8 +87,8 @@ class TravelTimeCalculator:
                                                                             # head-waves will overtake the direct bending modes
         
         # Calculate direct rays in the ice
-        iordata[:, boundary_z_ind:, :] = 10.0 # assign a spuriously large IOR to the air to make sure there are no head waves
-                                              # that can overtake the bulk-bending modes that we want
+        iordata[:, boundary_z_ind:, :] = 100.0 # assign a spuriously large IOR to the air to make sure there are no head waves
+                                               # that can overtake the bulk-bending modes that we want
         solver = _get_solver(iordata)
         src_ind = self._coord_to_pykonal([self.tx_pos])[0]
         
@@ -106,6 +111,19 @@ class TravelTimeCalculator:
         self.travel_time_maps["reflected"] = np.copy(solver.traveltime.values)
         self.travel_time_maps["reflected"][:, boundary_z_ind:, :] = np.nan # this is now unphysical in the air
 
+        # Calculate refracted rays in the ice
+        solver = _get_solver(iordata)
+        grad_y = np.gradient(self.travel_time_maps["direct_ice"], axis = 1)
+        turnover_manifold = np.abs(grad_y) < 0.0001
+        solver.traveltime.values[turnover_manifold] = 0.0 # self.travel_time_maps["direct_ice"][turnover_manifold]
+        solver.unknown[turnover_manifold] = False
+        for (r_ind, z_ind, _) in zip(*turnover_manifold.nonzero()):
+            solver.trial.push(r_ind, z_ind, 0)
+        solver.solve()
+        
+        self.travel_time_maps["refracted"] = np.copy(solver.traveltime.values)
+        self.travel_time_maps["refracted"][:, boundary_z_ind:, :] = np.nan # this is unphysical in the air
+        
         self._build_tangent_vectors()
 
     def get_ind(self, coord):
