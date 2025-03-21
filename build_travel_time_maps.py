@@ -4,7 +4,7 @@ from detector import Detector
 import numpy as np
 
 def build_travel_time_maps(outpath, channel_positions, z_range = (-650, 150), r_max = 1100, num_pts_z = 1000, num_pts_r = 1000,
-                           ior_model = defs.ior_exp3):
+                           ior_model = defs.ior_exp1):
 
     z_range_map = (z_range[0] - 1, z_range[1] + 1)
     r_max_map = r_max + 1
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--outpath", action = "store", dest = "outpath")
     parser.add_argument("--detector", action = "store", dest = "detectorpath")
-    parser.add_argument("--channels", nargs = "+", action = "store", dest = "channels_to_include", default = [0, 1, 2, 3, 5, 6, 7, 22, 23])
+    parser.add_argument("--channels", nargs = "+", action = "store", dest = "channels_to_include", default = [0], type = int)
     parser.add_argument("--station", type = int, default = 11, dest = "station_id")
     args = parser.parse_args()
 
