@@ -18,6 +18,10 @@ def show_interferometric_reco(recopath, outpath, detector,
     # Figure out how to plot this map:
     plot_axes = []
     plot_axes_ind = []
+    
+    #for angular plot, change to ["elevation", "azimuth", "radius"]
+    #for RZ plot, change to ["z", "r", "azimuth"]
+    
     for ind, axis in enumerate(["x", "y", "z"]):
         if len(intmap[axis]) > 1:
             plot_axes.append(axis)
