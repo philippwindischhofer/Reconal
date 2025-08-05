@@ -75,7 +75,6 @@ def get_caustic(src, ior, grad_ior, rmax, z_range, reflection_at_z):
 
     mesh = np.linspace(get_theta_min(src, ior, reflection_at_z), 89, 20)
     rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh)
-    # plt.scatter(turnover[:, 0], turnover[:, 1], color = 'blue')
     
     coords = rays.swapaxes(1, 2) # Sort into coordinate pairs
     coords = coords[~np.isnan(coords).any(axis = 2)] # Remove NaN values, combine rays into one set of coordinates
@@ -98,13 +97,5 @@ def get_caustic(src, ior, grad_ior, rmax, z_range, reflection_at_z):
 
     def turnover_rule(z):
         return np.interp(z, turnover[:, 1], turnover[:, 0], left = np.nan, right = np.nan)
-    
-    """zvals = np.linspace(-95, 0, 1000)
-    plt.plot(turnover_rule(zvals), zvals, color = 'red', zorder = 1)
-    for ray in rays:
-        plt.plot(*ray, color = 'black', zorder = 0)
-
-    plt.show()
-    exit()"""
 
     return caustic_rule, turnover_rule

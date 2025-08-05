@@ -148,7 +148,7 @@ class TravelTimeCalculator:
         # Set up ray geometry
         
         boundary_z_ind = self._coord_to_pykonal([[0, reflection_at_z]])[0][1]
-        caustic, turnover = ray_utils.get_caustic(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, reflection_at_z)
+        caustic = ray_utils.get_caustic(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, reflection_at_z)[0]
 
         # Calculate rays transmitted into the air
         start = perf_counter()
@@ -166,13 +166,6 @@ class TravelTimeCalculator:
         
         solver = _get_solver(point = True)
         solver.src_loc = 0, self.tx_z, 0
-
-        # solver = _get_solver()
-        src_ind = self._coord_to_pykonal([self.tx_pos])[0]
-        
-        # solver.traveltime.values[*src_ind] = 0 # Place a point source at the transmitter
-        # solver.unknown[*src_ind] = False    
-        # solver.trial.push(*src_ind)
         
         rvals = np.arange(0, self.r_max + 1, self.delta_r)
         caustic_points = np.swapaxes(np.array((rvals, caustic(rvals))), 0, 1)[~np.isnan(caustic(rvals))]
@@ -187,13 +180,6 @@ class TravelTimeCalculator:
 
         self.travel_time_maps["direct_ice"] = np.copy(solver.traveltime.values)
         self.travel_time_maps["direct_ice"][:, boundary_z_ind+1:, :] = np.nan # this is now unphysical in the air
-        for z_ind in np.arange(src_ind[1], boundary_z_ind):
-            z = solver.traveltime.nodes[0, z_ind, 0, 1]
-            print(z)
-            print(turnover(z))
-            turnover_ind = self._coord_to_pykonal([[turnover(z), 0]])[0][0]
-            print(turnover_ind)
-            self.travel_time_maps["direct_ice"][turnover_ind:, z_ind] = np.nan # Eliminate refracted solutions
         
         # Calculate reflected rays: place a line source at the air/ice boundary
         start = perf_counter()
@@ -213,6 +199,7 @@ class TravelTimeCalculator:
         
         # Calculate refracted rays: big rays method
         start = perf_counter()
+        
         # Ray tracer: calculate individual rays, turnover points, and caustic
         theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z), 89
         mesh = (np.linspace(theta_min + 1, theta_max - 1, num_big_rays + 1), np.linspace(theta_min + 2, theta_max, num_big_rays + 1))
@@ -224,8 +211,6 @@ class TravelTimeCalculator:
         self.travel_time_maps["refracted"] = np.full((self.num_pts_r, self.num_pts_z, 1), np.nan)
         
         for i in range(num_big_rays):
-
-            print(f"Generating traveltime field for big ray {i + 1} of {num_big_rays}")
 
             solver = _get_solver()
 
@@ -250,9 +235,7 @@ class TravelTimeCalculator:
             big_ray_list = [pixels] # List to keep big ray at various resolutions
             
             # Zoom in on pinch point
-            x = 1
             while thindex.size > 0:
-                print(f'zoom in {x}')
                 old_solver = solvers[-1]
                 old_pixels = big_ray_list[-1]
                 
@@ -275,9 +258,6 @@ class TravelTimeCalculator:
                 iorslice = ior(zvals)
                 iordata = np.expand_dims(np.tile(iorslice, reps = (solver.traveltime.npts[0], 1)), axis = -1)
                 veldata = 1.0 / iordata
-                print(solver.velocity.npts)
-                print(veldata.shape)
-                print(solver.velocity.values.shape)
 
                 solver.velocity.values = veldata
 
@@ -304,14 +284,11 @@ class TravelTimeCalculator:
                 if np.any(np.isfinite(solver.traveltime.values[-1, ...])): # Check if solution has successfully propagated through pinch point
                     break
 
-                x += 1
-
             # Return to normal grid size (zoom out)
             solvers.reverse()
             big_ray_list.reverse()
 
             for ii in range(1, len(solvers)): 
-                print(f'zoom out {x}')
                 
                 solver = solvers[ii]
                 old_solver = solvers[ii - 1]
@@ -341,13 +318,7 @@ class TravelTimeCalculator:
 
                 solver.solve()
 
-                tvals = solver.traveltime.values
-                tvals = np.flip(np.transpose(tvals, axes = (1, 0, 2)), axis = 0)
-                ax.imshow(tvals, extent = [0, solver.traveltime.nodes.shape[0], 0, solver.traveltime.nodes.shape[1]], cmap = 'rainbow')
-
                 _select_relevant_traveltimes(solver, pixels)
-
-                x -= 1
 
             # Build big ray map (interpolate finer solvers back onto coarse grid)
             big_ray_map = np.full((self.num_pts_r, self.num_pts_z, 1), np.nan)
@@ -361,10 +332,6 @@ class TravelTimeCalculator:
                 big_ray_map[~np.isfinite(big_ray_map)] = interpn(points, values, eval_at, bounds_error = False)[~np.isfinite(big_ray_map)]
 
             self.travel_time_maps['refracted'][~np.isfinite(self.travel_time_maps['refracted'])] = big_ray_map[~np.isfinite(self.travel_time_maps['refracted'])]
-            tvals = self.travel_time_maps['refracted']
-            tvals = np.flip(np.transpose(tvals, axes = (1, 0, 2)), axis = 0)
-            fig, ax = plt.subplots()
-            ax.imshow(tvals, extent = [self.domain_start[0], self.domain_end[0], self.domain_start[1], self.domain_end[1]], cmap = 'rainbow')
     
         self.travel_time_maps['refracted'][self.travel_time_maps['refracted'] < self.travel_time_maps['direct_ice'] + 1] = np.nan
         end = perf_counter()
