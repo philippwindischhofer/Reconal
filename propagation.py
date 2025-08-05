@@ -3,10 +3,6 @@ import numpy as np
 from scipy.interpolate import interpn
 from . import ray_utils
 from time import perf_counter
-import matplotlib.pyplot as plt
-from matplotlib import patches
-
-print('imports good')
 
 class TravelTimeCalculator:
 
@@ -199,7 +195,7 @@ class TravelTimeCalculator:
         
         # Calculate refracted rays: big rays method
         start = perf_counter()
-        
+
         # Ray tracer: calculate individual rays, turnover points, and caustic
         theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z), 89
         mesh = (np.linspace(theta_min + 1, theta_max - 1, num_big_rays + 1), np.linspace(theta_min + 2, theta_max, num_big_rays + 1))
