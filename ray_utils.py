@@ -1,6 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import time
+from scipy.constants import c
+
+speed_of_light = c / 1e9
 
 def get_theta_min(src, ior, reflection_at_z): # returns angle (in degrees) such that turnover occurs at reflection line
     if ior(reflection_at_z) / ior(src[1]) <= 1:
@@ -10,13 +11,16 @@ def get_theta_min(src, ior, reflection_at_z): # returns angle (in degrees) such 
         return 0
     
 def get_adaptive_dr(max_theta, ior, grad_ior, z, step): # adjusts r step based on % change in IOR
-    dr = abs(max_theta * ior(z) / grad_ior(z))
-    return min(dr, step)
+    try:
+        dr = abs(max_theta * ior(z) / grad_ior(z))
+        return min(dr, step)
+    except ZeroDivisionError:
+        return step
 
 def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta): # adaptive ray tracer for plane-stratified media
 
-    ray = np.full((2, int(rmax / max_theta)), np.nan, dtype = float)
-    ray[:, 0] = src
+    ray = np.full((3, int(rmax / max_theta)), np.nan, dtype = float)
+    ray[:, 0] = src + [0,]
     
     theta = np.radians(theta)
 
@@ -32,8 +36,9 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta): # ada
         if ray[0, i] > rmax or ray[1, i] > z_range[1]:
             break
         
-        ray[0, i + 1] = ray[0, i] + dr
-        ray[1, i + 1] = ray[1, i] + dr / np.tan(theta)
+        ray[0, i + 1] = ray[0, i] + dr  # Update r value (range)
+        ray[1, i + 1] = ray[1, i] + dr / np.tan(theta)  # Update z value (depth)
+        ray[2, i + 1] = ray[2, i] + np.abs(dr / np.sin(theta)) * ior_old / speed_of_light # Update traveltime (dt = ds * n / c)
         
         ior_new = ior(ray[1, i + 1])
         
@@ -49,13 +54,12 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta): # ada
 
     return ray, turnover
 
-def get_rays(src, ior, grad_ior, rmax, z_range, mesh):
+def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
 
-    step = 1
     max_theta = 0.001
 
-    rays = np.full((len(mesh), 2, int(rmax // max_theta) + 1), np.nan)
-    turnover = np.full((len(mesh), 2), np.nan)
+    rays = np.full((len(mesh), 3, int(rmax // max_theta) + 1), np.nan)
+    turnover = np.full((len(mesh), 3), np.nan)
     
     for i, theta in enumerate(mesh):
         if 0 < theta < 180: # Ray-tracer requires horizontal propagation; filter out strictly vertical rays
@@ -63,39 +67,46 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh):
         elif theta == 0: # ray goes straight up
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] + np.arange(0, int(rmax / max_theta)) * step
+            rays[i, 2] = (rays[i, 1] - src[1]) * ior(rays[i, 1]) / speed_of_light
         elif theta == 180: # ray goes straight down
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] - np.arange(0, int(rmax / max_theta)) * step
+            rays[i, 2] = (src[1] - rays[i, 1]) * ior(rays[i, 1]) / speed_of_light
         else:
             raise ValueError("Launch angle must be between 0 and 180 (inclusive)")
 
     return rays, turnover
 
-def get_caustic(src, ior, grad_ior, rmax, z_range, reflection_at_z):
 
-    mesh = np.linspace(get_theta_min(src, ior, reflection_at_z), 89, 20)
-    rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh)
-    
-    coords = rays.swapaxes(1, 2) # Sort into coordinate pairs
+def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z):
+    theta_min = get_theta_min(src, ior, reflection_at_z)
+    mesh = np.linspace(theta_min, 89.9999, 50)
+    rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1)
+
+    # Generating caustic (direct map, big ray bounds)
+    coords = rays.swapaxes(1, 2) # Sort into coordinate pairs; leave out reflected ray
     coords = coords[~np.isnan(coords).any(axis = 2)] # Remove NaN values, combine rays into one set of coordinates
     coords = coords[coords[:, 0].argsort()] # Sort by rvals
     
-    caustic = np.full((rmax, 2), np.nan)
+    caustic = np.full((rmax + 2, 3), np.nan)
     
     for i in range(rmax): # Select top edge of ray family (with tolerance for different step sizes)
-        mask = np.logical_and(coords[:, 0] < i + 0.5, coords[:, 0] > i - 0.5) 
-        idx = np.argmax(coords[mask][:, 1]) # For r-window (i - 0.5, i + 0.5), find the largest z-value
+        mask = np.logical_and(coords[:, 0] < i + 1, coords[:, 0] > i - 1) 
+        idx = np.argmax(coords[mask][:, 1]) # For r-window (i - 1, i + 1), find the largest z-value
         caustic[i] = coords[mask][idx]
 
-    mask = caustic[:, 0] >= turnover[0, 0] # Values left of intersection with surface are unphysical; reject
-    caustic = caustic[mask]
-    turnover = np.append(turnover, [[0, src[1]]], axis = 0)
-    turnover = np.flip(turnover, axis = 0)
+    caustic = caustic[caustic[:, 0] >= turnover[0, 0]].swapaxes(0, 1) # Values left of intersection with surface are unphysical; reject
 
-    def caustic_rule(r):
-        return np.interp(r, caustic[:, 0], caustic[:, 1], left = np.nan, right = np.nan)
+    # Generating largest reflected ray (reflected map)
+    refl_ray, refl_turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1)
+    reflected_bounds = refl_ray[0, :-1].swapaxes(0, 1)
+    reflected_bounds = reflected_bounds[~np.isnan(reflected_bounds).any(axis = 1)]
+    reflected_bounds = reflected_bounds[reflected_bounds[:, 0] >= refl_turnover[0, 0]].swapaxes(0, 1)
 
-    def turnover_rule(z):
-        return np.interp(z, turnover[:, 1], turnover[:, 0], left = np.nan, right = np.nan)
+    # Generating turnover line (direct map)
 
-    return caustic_rule, turnover_rule
+    turnover = np.concatenate((turnover, np.swapaxes(rays[-1], 0, 1)), axis = 0)
+    turnover = turnover[~np.isnan(turnover).any(axis = 1)] # Remove NaN values 
+    turnover = turnover[turnover[:, 1].argsort()].swapaxes(0, 1) # Sort by zvals
+
+    return caustic, turnover, reflected_bounds
