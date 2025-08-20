@@ -1,7 +1,7 @@
 import copy
 import pykonal
 import numpy as np
-import ray_utils
+from . import ray_utils
 from scipy.constants import c
 
 class TravelTimeCalculator:
@@ -44,7 +44,7 @@ class TravelTimeCalculator:
             "travel_time_fields": self.travel_time_fields
         })
     
-    def set_ior_and_solve(self, ior, grad_ior, num_big_rays, reflection_at_z = 0.0):
+    def set_ior_and_solve(self, ior, grad_ior, num_big_rays, reflection_at_z = 0.0, air_ior = 1.0):
 
         speed_of_light = c / (1e9) # NuRadio speed of light in m/ns
 
@@ -117,7 +117,6 @@ class TravelTimeCalculator:
 
         # Calculate direct rays in the ice
         solver = _get_solver(point = True)
-        solver.velocity.values[:, boundary_z_ind:] /= 10 # Prevent head waves from dominating field
         solver.src_loc = self.tx_pos + [0]
 
         solver.known[:, boundary_z_ind + 2] = True
@@ -129,13 +128,14 @@ class TravelTimeCalculator:
         # Calculate rays transmitted into the air: place a line source at the air/ice boundary
         solver = _get_solver()
         solver.traveltime.values[:, boundary_z_ind, :] = self.travel_time_fields["direct"].values[:, boundary_z_ind, :]
+        solver.velocity.values[:, boundary_z_ind + 1:] = speed_of_light / air_ior
         solver.unknown[:, boundary_z_ind] = False
         solver.known[:, :boundary_z_ind + 1] = True
         for r_ind in range(self.num_pts_r):
             solver.trial.push(r_ind, boundary_z_ind, 0)
         solver.solve()
 
-        self.travel_time_fields['direct'].values[:, boundary_z_ind:] = solver.traveltime.values[:, boundary_z_ind:]
+        self.travel_time_fields['direct'].values[:, boundary_z_ind + 1:] = solver.traveltime.values[:, boundary_z_ind + 1:]
 
         # Eliminate refracted solutions from direct map
         turnover_vals = np.interp(np.arange(self.domain_start[1], reflection_at_z, self.delta_z), turnover_bounds[1], turnover_bounds[0], left = np.nan, right = np.nan)
