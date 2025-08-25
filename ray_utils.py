@@ -78,21 +78,21 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
     return rays, turnover
 
 
-def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z):
+def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z, step = 1):
     theta_min = get_theta_min(src, ior, reflection_at_z)
     mesh = np.linspace(theta_min, 89.9999, 50)
-    rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1)
+    rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step)
+    rvals = np.arange(0, rmax, step)
 
     # Generating caustic (direct map, big ray bounds)
     coords = rays.swapaxes(1, 2) # Sort into coordinate pairs; leave out reflected ray
     coords = coords[~np.isnan(coords).any(axis = 2)] # Remove NaN values, combine rays into one set of coordinates
     coords = coords[coords[:, 0].argsort()] # Sort by rvals
+    caustic = np.full((int((rmax + 2) / step), 3), np.nan)
     
-    caustic = np.full((rmax + 2, 3), np.nan)
-    
-    for i in range(rmax): # Select top edge of ray family (with tolerance for different step sizes)
-        mask = np.logical_and(coords[:, 0] < i + 1, coords[:, 0] > i - 1) 
-        idx = np.argmax(coords[mask][:, 1]) # For r-window (i - 1, i + 1), find the largest z-value
+    for i, r in enumerate(rvals): # Select top edge of ray family (with tolerance for different step sizes)
+        mask = np.logical_and(coords[:, 0] < r + step, coords[:, 0] > r - step) 
+        idx = np.argmax(coords[mask][:, 1]) # For r-window (r - step, r + step), find the largest z-value
         caustic[i] = coords[mask][idx]
 
     caustic = caustic[caustic[:, 0] >= turnover[0, 0]].swapaxes(0, 1) # Values left of intersection with surface are unphysical; reject
@@ -104,7 +104,6 @@ def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z):
     reflected_bounds = reflected_bounds[reflected_bounds[:, 0] >= refl_turnover[0, 0]].swapaxes(0, 1)
 
     # Generating turnover line (direct map)
-
     turnover = np.concatenate((turnover, np.swapaxes(rays[-1], 0, 1)), axis = 0)
     turnover = turnover[~np.isnan(turnover).any(axis = 1)] # Remove NaN values 
     turnover = turnover[turnover[:, 1].argsort()].swapaxes(0, 1) # Sort by zvals
