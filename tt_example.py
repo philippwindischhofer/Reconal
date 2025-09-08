@@ -9,11 +9,11 @@ rmax = 1000 # rmin always assumed to be 0
 zmin, zmax = -1000, 1000
 dr, dz = 1, 1   # Grid spacing in r, z directions
 npts_r, npts_z = int(rmax / dr) + 1, int((zmax - zmin) / dr) + 1    # Number of grid nodes (note +1)
-tx_pos = np.array([0, -60])  # Source depth
+tx_pos = np.array([0, -60])  # Source position
 
 # Solve!
 ttc = TravelTimeCalculator(tx_pos[1], (zmin, zmax), rmax, npts_z, npts_r)
-ttc.set_ior_and_solve(defs.ior_exp1, defs.grad_ior_exp1, num_big_rays = 0, reflection_at_z = 0.0, air_ior = 1.0) # Simple ice model, with an air-ice discontinuity at z = 0.0.
+ttc.set_ior_and_solve(defs.ior_exp1, defs.grad_ior_exp1, num_big_rays = 20, reflection_at_z = 0.0, air_ior = 1.0) # Simple ice model, with an air-ice discontinuity at z = 0.0.
 
 # Extract traveltime maps as ndarrays.
 for comp, field in ttc.travel_time_fields.items():
