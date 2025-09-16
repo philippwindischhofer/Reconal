@@ -13,7 +13,7 @@ class TravelTimeCalculator:
         obj = cls(**indict)
         return obj
     
-    def __init__(self, tx_z, z_range, r_max, num_pts_z, num_pts_r):
+    def __init__(self, tx_z, z_range, r_max, num_pts_z, num_pts_r, travel_time_maps = {}):
 
         self.tx_z = tx_z
         self.tx_pos = [0.0, self.tx_z]
@@ -34,6 +34,14 @@ class TravelTimeCalculator:
         
         self.travel_time_fields = {}
 
+        if travel_time_maps:
+            for comp, tt_map in travel_time_maps.items():
+                self.travel_time_fields[comp] = pykonal.fields.ScalarField3D(coord_sys = 'cartesian')
+                self.travel_time_fields[comp].min_coords = self.domain_start[0], self.domain_start[1], 0
+                self.travel_time_fields[comp].npts = self.num_pts_r, self.num_pts_z, 1
+                self.travel_time_fields[comp].node_intervals = self.delta_r, self.delta_z, 1
+                self.travel_time_fields[comp].values = tt_map
+
     def to_dict(self):        
         return copy.deepcopy({
             "tx_z": self.tx_z,
@@ -52,9 +60,12 @@ class TravelTimeCalculator:
         air_ior above z = reflection_at_z.
         """
         
-        speed_of_light = c / (1e9) # NuRadio speed of light in m/ns
+        speed_of_light = c / (1e9) # m/ns
 
-        def _get_solver(point = False): # Initialize FMM solver over the full computational domain.
+        def _get_solver(point = False):    
+            """
+            Initializes FMM solver over the full computational domain.
+            """
             
             if point:
                 solver = pykonal.solver.PointSourceSolver(coord_sys = "cartesian")
@@ -73,7 +84,7 @@ class TravelTimeCalculator:
 
         def _get_big_ray(tracer, caustic, ray_number, solver):
             """
-            Generate big ray node bounds and traveltimes according to current solver domain & mesh size.
+            Generates big ray node bounds and traveltimes according to current solver domain & mesh size.
             Default ray bounds are generated through reconal raytracer, but bounds calculated from alternative
             raytracing methods can be passed in as tuples of 2 ndarrays, shape = (num_big_rays + 1, 3, N).
             """
@@ -108,7 +119,10 @@ class TravelTimeCalculator:
 
             return big_ray_nodes, big_ray_times
         
-        def point_solve(solver):    # Correct for a tolerance issue in the pykonal PointSourceSolver script.
+        def point_solve(solver, src_ind):
+            """
+            Corrects for a tolerance issue & source backfilling in the pykonal PointSourceSolver script.
+            """
             solver.initialize_near_field_grid()
 
             r0 = np.sqrt(np.sum(np.square(solver.src_loc)))
@@ -137,10 +151,14 @@ class TravelTimeCalculator:
             solver.near_field.solve()
             solver.interpolate_near_field_traveltime_onto_far_field()
             solver.initialize_far_field_narrow_band()
+            solver.traveltime.values[0, src_ind, 0] = 0
             solver.known[np.isfinite(solver.traveltime.values)] = True
             super(pykonal.solver.PointSourceSolver, solver).solve()
         
         def _set_boundary_condition(solver, nodes, times = None):
+            """
+            Sets finite or infinite boundary conditions along nodes.
+            """
             boundary_nodes = nodes.reshape(-1, nodes.shape[-1]) # Reshapes multiple sets of nodes (N total) into array with shape (N,3) or (N,4)
                                                                 # depending on time condition (necessary for big ray generation with top/bottom bounds)
             nodes_mask = np.logical_and((boundary_nodes < solver.traveltime.nodes.shape[:-1]).all(axis = 1), (boundary_nodes >= 0).all(axis = 1))
@@ -155,7 +173,10 @@ class TravelTimeCalculator:
                 inds = tuple(boundary_nodes[nodes_mask].swapaxes(0, 1))
                 solver.known[*inds] = True
 
-        def _select_relevant_traveltimes(solver, nodes):   # Traveltimes are unphysical outside big ray boundaries
+        def _select_relevant_traveltimes(solver, nodes):
+            """
+            Eliminates unphysical traveltimes outside big ray boundaries.
+            """
             for r in range(solver.traveltime.npts[0]):
                 min_z = max(nodes[0, r, 1], 0)
                 max_z = max(nodes[1, r, 1], 0)
@@ -186,7 +207,7 @@ class TravelTimeCalculator:
         except IndexError:
             pass
 
-        point_solve(solver)
+        point_solve(solver, src_ind)
 
         self.travel_time_fields['direct'] = solver.traveltime
 
@@ -388,7 +409,7 @@ class TravelTimeCalculator:
         if isinstance(coord, list):
             coord = np.array(coord)
 
-        if solver is not None:   
+        if solver:   
             start = np.array(solver.vv.min_coords[:-1])
             delta = np.array(solver.vv.node_intervals[:-1])
         
