@@ -3,22 +3,30 @@ from scipy.constants import c
 
 speed_of_light = c / 1e9
 
-def get_theta_min(src, ior, reflection_at_z): # returns angle (in degrees) such that turnover occurs at reflection line
-    if ior(reflection_at_z) / ior(src[1]) <= 1:
-        theta = np.arcsin(ior(0) / ior(src[1])) # Snell's law
+def get_theta_min(src, ior, reflection_at_z):
+    """
+    Returns angle (in degrees) such that turnover occurs at reflection depth.
+    """
+    if ior(reflection_at_z) <= ior(src[1]):
+        theta = np.arcsin(ior(reflection_at_z) / ior(src[1])) # Snell's law
         return np.degrees(theta)
     else:
         return 0
     
-def get_adaptive_dr(max_theta, ior, grad_ior, z, step): # adjusts r step based on % change in IOR
+def get_adaptive_dr(max_theta, ior, grad_ior, z, step):
+    """
+    Adjusts radial raytracing step based on percent change in index of refraction.
+    """
     try:
         dr = abs(max_theta * ior(z) / grad_ior(z))
         return min(dr, step)
     except ZeroDivisionError:
         return step
 
-def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta): # adaptive ray tracer for plane-stratified media
-
+def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta):
+    """
+    Adaptive Snell's law raytracer for plane-stratified media.
+    """
     ray = np.full((3, int(rmax / max_theta)), np.nan, dtype = float)
     ray[:, 0] = src + [0,]
     
@@ -33,7 +41,7 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta): # ada
     turnover = None
 
     for i in range(int(rmax / max_theta) + 1):
-        if ray[0, i] > rmax or ray[1, i] > z_range[1]:
+        if ray[0, i] > rmax or ray[1, i] < z_range[0] or ray[1, i] > z_range[1]:
             break
         
         ray[0, i + 1] = ray[0, i] + dr  # Update r value (range)
@@ -55,6 +63,9 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta): # ada
     return ray, turnover
 
 def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
+    """
+    Loop to execute raytracer. Corrects for possible division by 0 in case of rays traveling straight up or down.
+    """
 
     max_theta = 0.001
 
@@ -64,11 +75,11 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
     for i, theta in enumerate(mesh):
         if 0 < theta < 180: # Ray-tracer requires horizontal propagation; filter out strictly vertical rays
             rays[i], turnover[i] = ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta)
-        elif theta == 0: # ray goes straight up
+        elif theta == 0.0: # ray goes straight up
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] + np.arange(0, int(rmax / max_theta)) * step
             rays[i, 2] = (rays[i, 1] - src[1]) * ior(rays[i, 1]) / speed_of_light
-        elif theta == 180: # ray goes straight down
+        elif theta == 180.0: # ray goes straight down
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] - np.arange(0, int(rmax / max_theta)) * step
             rays[i, 2] = (src[1] - rays[i, 1]) * ior(rays[i, 1]) / speed_of_light
@@ -79,6 +90,9 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
 
 
 def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z, step = 1):
+    """
+    Returns caustic (bound for direct and refracted maps), largest reflected ray (reflected map), and turnover line (direct map).
+    """
     theta_min = get_theta_min(src, ior, reflection_at_z)
     mesh = np.linspace(theta_min, 89.9999, 50)
     rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step)
