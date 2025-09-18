@@ -7,6 +7,14 @@ C = 0.0202
 def ior_exp1(z):
     """
     Simple exponential ice model.
+
+    Parameters
+    __________
+    z : float or 1D numpy array (n,)
+
+    Returns
+    _______
+    n : float or 1D numpy array (n,)
     """
     def iorfunc(z):
         return A - (A - B) * np.exp(C * z)
@@ -23,6 +31,17 @@ def ior_exp1(z):
             return iorfunc(z)
 
 def grad_ior_exp1(z):
+    """
+    Depth derivative of simple exponential ice model.
+
+    Parameters
+    __________
+    z : float or 1D numpy array (n,)
+
+    Returns
+    _______
+    dn/dz : float or 1D numpy array (n,)
+    """
     
     def grad_iorfunc(z):
         return (B - A) * C * np.exp(C * z)
@@ -40,7 +59,15 @@ def grad_ior_exp1(z):
 
 def ior_exp3(z):
     """
-    3-layer piecewise exponential ice model.
+    RNO-G 3-layer piecewise exponential ice model.
+
+    Parameters
+    __________
+    z : float or 1D numpy array (n,)
+
+    Returns
+    _______
+    n : float or 1D numpy array (n,)
     """
     def iorfunc_snow(z):
         return 1.51188 - 0.271579 * np.exp(0.114553 * z)
@@ -78,6 +105,17 @@ def ior_exp3(z):
             return iorfunc_bubbly(z)
 
 def grad_ior_exp3(z):
+    """
+    Depth derivative of RNO-G 3-layer piecewise exponential ice model.
+
+    Parameters
+    __________
+    z : float or 1D numpy array (n,)
+
+    Returns
+    _______
+    dn/dz : float or 1D numpy array (n,)
+    """
 
     def grad_iorfunc_snow(z):
         return - 0.271579 * 0.114553 * np.exp(0.114553 * z)
@@ -113,3 +151,35 @@ def grad_ior_exp3(z):
             return grad_iorfunc_firn(z)
         if z <= z2:
             return grad_iorfunc_bubbly(z)
+        
+def get_ior_from_nuradio(ice):
+    """
+    Wrapper for compatibility between NuRadioMC ice model and Reconal refractive index functions.
+
+    Parameters
+    __________
+    ice : NuRadioMC.utilities.medium_base.IceModel
+        NuRadioMC ice model with implemented get_index_of_refraction and get_gradient_of_index_of_refraction functions.
+
+    Returns
+    _______
+    ior : function
+        Returns index of refraction at z-value (not 3d coordinate).
+    grad_ior : function
+        Returns dn/dz at z-value (not 3d coordinate).
+    """
+    def iorfunc(z):
+        if isinstance(z, np.ndarray):
+            pts = np.array((np.full_like(z, 0), np.full_like(z, 0), z)).swapaxes(0, 1)
+            return ice.get_index_of_refraction(pts)
+        else:
+            return ice.get_index_of_refraction(np.array((0, 0, z)))
+    
+    def grad_iorfunc(z):
+        if isinstance(z, np.ndarray):
+            pts = np.array((np.full_like(z, 0), np.full_like(z, 0), z))
+            return ice.get_gradient_of_index_of_refraction(pts)[2]
+        else:
+            return ice.get_gradient_of_index_of_refraction(np.array((0, 0, z)))[2]
+
+    return iorfunc, grad_iorfunc
