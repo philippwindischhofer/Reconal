@@ -52,12 +52,21 @@ class TravelTimeCalculator:
             "travel_time_fields": self.travel_time_fields
         })
     
-    def set_ior_and_solve(self, ior, grad_ior, num_big_rays, reflection_at_z = 0.0, air_ior = 1.0):
+    def set_ior_and_solve(self, ior, grad_ior, num_big_rays = 0, reflection_at_z = 0.0):
 
         """
-        Pass index of refraction as a continuous function even where unphysical (i.e., maintain single-exponential profile in air).
-        This prevents headwaves from propagating into direct_ice solution, and the direct_air solver will correct for the constant
-        air_ior above z = reflection_at_z.
+        Supports discontinuous piecewise ice models.
+        
+        Parameters
+        __________
+        ior : function
+            Function which returns index of refraction n(z). Should accept floats or ndarrays of z-values (not 3d coordinates).
+        grad_ior : function
+            Function which returns dn/dz at depth z. See ior.
+        num_big_rays : int
+            Number of big rays used to calculate refracted maps. Defaults to 0 (in this case no refracted map generated)
+        reflection_at_z : float, optional
+            z value of surface-ice discontinuity. Defaults to z = 0.
         """
         
         speed_of_light = c / (1e9) # m/ns
@@ -85,8 +94,7 @@ class TravelTimeCalculator:
         def _get_big_ray(tracer, caustic, ray_number, solver):
             """
             Generates big ray node bounds and traveltimes according to current solver domain & mesh size.
-            Default ray bounds are generated through reconal raytracer, but bounds calculated from alternative
-            raytracing methods can be passed in as tuples of 2 ndarrays, shape = (num_big_rays + 1, 3, N).
+            Default ray bounds are generated through reconal raytracer.
             """
             if solver is not None:  # Generate big ray over solver domain
                 rvals = solver.traveltime.nodes[:, 0, 0, 0]
@@ -109,8 +117,8 @@ class TravelTimeCalculator:
                                      np.interp(rvals, caustic[0], caustic[2], left = np.nan, right = np.nan)), axis = 1)
             
             if np.isfinite(caustic_vals).any(): # Replace top ray bound with caustic between contact points
-                ind1 = np.nanargmin((caustic_vals[:, 0] - bounds[0, :, 0]) ** 2)
-                ind2 = np.nanargmin((caustic_vals[:, 0] - bounds[1, :, 0]) ** 2) + 1
+                ind1 = np.nanargmin(np.square(caustic_vals[:, 0] - bounds[0, :, 0]))
+                ind2 = np.nanargmin(np.square(caustic_vals[:, 0] - bounds[1, :, 0])) + 1
                 big_ray[1][ind1 : ind2] = caustic_vals[ind1 : ind2]
 
             big_ray = np.concatenate((np.expand_dims(np.tile(rvals, (2,1)), axis = 2), big_ray), axis = 2)
@@ -214,7 +222,6 @@ class TravelTimeCalculator:
         # Calculate rays transmitted into the air
         solver = _get_solver()
         solver.traveltime.values[:, boundary_z_ind, :] = self.travel_time_fields["direct"].values[:, boundary_z_ind, :]
-        solver.velocity.values[:, boundary_z_ind + 1:, :] = speed_of_light / air_ior
         solver.unknown[:, boundary_z_ind] = False
         solver.known[:, :boundary_z_ind] = True
         for r_ind in range(self.num_pts_r):
@@ -239,6 +246,7 @@ class TravelTimeCalculator:
 
         for max_ind, r_ind in zip(max_inds, r_inds):
             solver.traveltime.values[r_ind, max_ind : boundary_z_ind] = np.inf # Eliminate non-raytracing solutions from reflected map
+        solver.traveltime.values[r_inds[-1]:] = np.inf
         solver.traveltime.values[:, boundary_z_ind + 1:, :] = np.inf # this is now unphysical in the air
         self.travel_time_fields['reflected'] = solver.traveltime
         
@@ -291,8 +299,8 @@ class TravelTimeCalculator:
 
                 r0, rf = thindex.min(), thindex.max()    # First and last points (after turnover) where ray thickness is below our tolerance
                 
-                z0 = min(old_nodes[0, r0, 1], old_nodes[0, rf, 1])
-                zf = max(old_nodes[1, r0, 1], old_nodes[1, rf, 1])
+                z0 = min(old_nodes[0, r0, 1], old_nodes[0, rf, 1]) - 1
+                zf = max(old_nodes[1, r0, 1], old_nodes[1, rf, 1]) + 1
                 
                 if r0 == rf: # Correct for case where thindex contains one point
                     rf += 1
