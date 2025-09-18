@@ -17,11 +17,12 @@ def get_adaptive_dr(max_theta, ior, grad_ior, z, step):
     """
     Adjusts radial raytracing step based on percent change in index of refraction.
     """
-    try:
-        dr = abs(max_theta * ior(z) / grad_ior(z))
-        return min(dr, step)
-    except ZeroDivisionError:
+    grad = grad_ior(z)
+    if grad == 0.0:
         return step
+    else:
+        dr = abs(max_theta * ior(z) / grad)
+        return min(dr, step)
 
 def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta):
     """
@@ -78,10 +79,12 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
         elif theta == 0.0: # ray goes straight up
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] + np.arange(0, int(rmax / max_theta)) * step
+            rays[i][:, rays[i, 1] > z_range[1]] = np.nan
             rays[i, 2] = (rays[i, 1] - src[1]) * ior(rays[i, 1]) / speed_of_light
         elif theta == 180.0: # ray goes straight down
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] - np.arange(0, int(rmax / max_theta)) * step
+            rays[i][:, rays[i, 1] < z_range[0]] = np.nan
             rays[i, 2] = (src[1] - rays[i, 1]) * ior(rays[i, 1]) / speed_of_light
         else:
             raise ValueError("Launch angle must be between 0 and 180 (inclusive)")
@@ -93,13 +96,16 @@ def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z, step 
     """
     Returns caustic (bound for direct and refracted maps), largest reflected ray (reflected map), and turnover line (direct map).
     """
-    theta_min = get_theta_min(src, ior, reflection_at_z)
-    mesh = np.linspace(theta_min, 89.9999, 50)
+    theta_min = get_theta_min(src, ior, reflection_at_z) + 0.0001
+    if theta_min < 89.999:
+        mesh = np.linspace(theta_min, 89.999, int((89.999 - theta_min) / 0.5))
+    else:   # Source at surface
+        mesh = [89.999]
     rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step)
     rvals = np.arange(0, rmax, step)
 
     # Generating caustic (direct map, big ray bounds)
-    coords = rays.swapaxes(1, 2) # Sort into coordinate pairs; leave out reflected ray
+    coords = np.copy(rays).swapaxes(1, 2) # Sort into coordinate pairs; leave out reflected ray
     coords = coords[~np.isnan(coords).any(axis = 2)] # Remove NaN values, combine rays into one set of coordinates
     coords = coords[coords[:, 0].argsort()] # Sort by rvals
     caustic = np.full((int((rmax + 2) / step), 3), np.nan)
@@ -112,10 +118,9 @@ def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z, step 
     caustic = caustic[caustic[:, 0] >= turnover[0, 0]].swapaxes(0, 1) # Values left of intersection with surface are unphysical; reject
 
     # Generating largest reflected ray (reflected map)
-    refl_ray, refl_turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1)
-    reflected_bounds = refl_ray[0, :-1].swapaxes(0, 1)
+    reflected_bounds = np.copy(rays)[0, :-1].swapaxes(0, 1)
     reflected_bounds = reflected_bounds[~np.isnan(reflected_bounds).any(axis = 1)]
-    reflected_bounds = reflected_bounds[reflected_bounds[:, 0] >= refl_turnover[0, 0]].swapaxes(0, 1)
+    reflected_bounds = reflected_bounds[reflected_bounds[:, 0] >= turnover[0, 0]].swapaxes(0, 1)
 
     # Generating turnover line (direct map)
     turnover = np.concatenate((turnover, np.swapaxes(rays[-1], 0, 1)), axis = 0)
