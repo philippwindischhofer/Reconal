@@ -177,7 +177,7 @@ def get_ior_from_nuradio(ice):
     
     def grad_iorfunc(z):
         if isinstance(z, np.ndarray):
-            pts = np.array((np.full_like(z, 0), np.full_like(z, 0), z))
+            pts = np.array((np.full_like(z, 0), np.full_like(z, 0), z)).swapaxes(0, 1)
             return ice.get_gradient_of_index_of_refraction(pts)[2]
         else:
             return ice.get_gradient_of_index_of_refraction(np.array((0, 0, z)))[2]
