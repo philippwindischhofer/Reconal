@@ -64,7 +64,7 @@ class TravelTimeCalculator:
         grad_ior : function
             Function which returns dn/dz at depth z. See ior.
         num_big_rays : int
-            Number of big rays used to calculate refracted maps. Defaults to 0 (in this case no refracted map generated)
+            Number of big rays used to calculate refracted maps. Defaults to 0 (in this case no refracted map generated).
         reflection_at_z : float, optional
             z value of surface-ice discontinuity. Defaults to z = 0.
         """
@@ -252,18 +252,19 @@ class TravelTimeCalculator:
         
         # Calculate refracted rays: big rays method
 
-        # Ray tracer: calculate individual rays & turnover points
-        theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z) + 0.0001, 89.9999 # Exactly 90 degrees would propagate horizontally forever
-        mesh = (np.linspace(theta_min, theta_max - 5, num_big_rays + 1), np.linspace(theta_min + 5, theta_max, num_big_rays + 1))
-        ray_data = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, mesh[0], step = self.delta_r),
-                    ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, mesh[1], step = self.delta_r))
-        tracer = ray_data[0][0], ray_data[1][0]
+        if num_big_rays > 0:
+            # Ray tracer: calculate individual rays & turnover points
+            theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z) + 0.0001, 89.9999 # Exactly 90 degrees would propagate horizontally forever
+            mesh = (np.linspace(theta_min, theta_max - 5, num_big_rays + 1), np.linspace(theta_min + 5, theta_max, num_big_rays + 1))
+            ray_data = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, mesh[0], step = self.delta_r),
+                        ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, mesh[1], step = self.delta_r))
+            tracer = ray_data[0][0], ray_data[1][0]
 
-        # Set up refracted field template on full domain
-        self.travel_time_fields['refracted'] = pykonal.fields.ScalarField3D(coord_sys = 'cartesian')
-        self.travel_time_fields['refracted'].min_coords = self.domain_start[0], self.domain_start[1], 0
-        self.travel_time_fields['refracted'].npts = self.num_pts_r, self.num_pts_z, 1
-        self.travel_time_fields['refracted'].node_intervals = self.delta_r, self.delta_z, 1
+            # Set up refracted field template on full domain
+            self.travel_time_fields['refracted'] = pykonal.fields.ScalarField3D(coord_sys = 'cartesian')
+            self.travel_time_fields['refracted'].min_coords = self.domain_start[0], self.domain_start[1], 0
+            self.travel_time_fields['refracted'].npts = self.num_pts_r, self.num_pts_z, 1
+            self.travel_time_fields['refracted'].node_intervals = self.delta_r, self.delta_z, 1
 
         for iR in range(num_big_rays):
 
@@ -381,7 +382,7 @@ class TravelTimeCalculator:
         turnover_inds = self._coord_to_node(np.array([turnover_vals[z_inds], np.zeros_like(z_inds, dtype = np.float64)]).swapaxes(0, 1))[:, 0]
         for turnover_ind, z_ind in zip(turnover_inds, z_inds):
             self.travel_time_fields["direct"].values[turnover_ind:, z_ind] = np.inf
-            if z_ind > src_ind:
+            if z_ind > src_ind and num_big_rays > 0:
                 self.travel_time_fields["refracted"].values[:turnover_ind, z_ind] = np.inf
 
     def get_ind(self, coord):
