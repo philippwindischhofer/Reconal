@@ -415,26 +415,116 @@ class TravelTimeCalculator:
 
     def get_ind(self, coord):
         return np.transpose(self._coord_to_node(coord))        
+
+    def get_travel_time_map(self, comp = "direct"):
+        """
+        Returns full traveltime map as numpy array, without metadata.
+        """
+        return self.travel_time_fields[comp].values
+
+    def get_travel_time(self, coord, comp = "direct", order = "first"):
+        """
+        Approximates traveltimes at arbitrary coordinates in computational domain.
+        First-order approximation is a convenience wrapper around pykonal.fields.ScalarField3D.resample().
+
+        Parameters
+        __________
+        coord : ndarray (n, 2)
+            Coordinates at which to sample traveltime field (order is arbitrary).
+        comp : str, optional
+            Map component to sample from. Defaults to 'direct'.
+        order : str, optional
+            Defaults to 'first'. Must be one of the following:
+                * 'first': Trilinear interpolation for traveltime at specified coordinate.
+                Recommended if arbitrary coordinates are needed.
+                * 'zero': Chooses node below and to the left of coordinate and returns
+                traveltime at node. Faster at an accuracy loss. Recommended if desired coordinates align with nodes.
+
+        Returns
+        _______
+        times : ndarray (n,)
+            Traveltimes at selected coordinates.
+        """
+        try:
+            if order == 'first':
+                coord = np.append(coord, np.zeros((len(coord), 1)), axis = 1)
+                return self.travel_time_fields[comp].resample(coord)
+                
+            elif order == 'zero':
+                ind = self.get_ind(coord)
+                return self.get_travel_time_ind(ind, comp)
+            
+            else:
+                raise ValueError("Expected 'zero' or 'first' as order argument.")
         
-    def get_travel_time(self, coord, comp = "direct"):
-
-        if comp not in self.travel_time_fields:
-            raise RuntimeError(f"Error: map for component '{comp}' not available!")
-
-        ind = self.get_ind(coord)
-
-        return self.travel_time_fields[comp].values[*ind]
+        except KeyError:
+                    raise KeyError(f"Error: map for component '{comp}' not available!")
 
     def get_travel_time_ind(self, ind, comp = "direct"):
+        """
+        Returns traveltime at index position in map.
+        """
         return self.travel_time_fields[comp].values[*ind]
     
-    def get_tangent_vector(self, coord, comp = "direct"):
+    def get_tangent_vector(self, coord, comp = "direct", order = "first", unit = False):
+        """
+        Approximates ray tangent vector at arbitrary coordinates in computational domain using
+        traveltime field gradient. First-order approximation uses trilinear interpolation from
+        pykonal.fields.VectorField3D.value().
 
-        if comp not in self.travel_time_fields:
-            raise RuntimeError(f"Error: map for component '{comp}' not available!")
+        Parameters
+        __________
+        coord : ndarray (n, 2)
+            Coordinates at which to sample gradient (order is arbitrary).
+        comp : str, optional
+            Map component to sample from. Defaults to 'direct'.
+        order : str, optional
+            Defaults to 'first'. Must be one of the following:
+                * 'first': Trilinear interpolation for gradient at specified coordinate.
+                Recommended if arbitrary coordinates are needed.
+                * 'zero': Chooses node below and to the left of coordinate and returns
+                gradient at node. Faster at an accuracy loss. Recommended if desired coordinates align with nodes.
+        unit : bool, optional
+            Defaults to False. If True, returns unit tangent vector.
 
-        ind_r, ind_z, _ = self.get_ind(coord)
-        return self.travel_time_fields[comp].gradient[ind_r, ind_z, 0]
+        Returns
+        _______
+        grad : ndarray (n, 2)
+            Tangent vectors at selected coordinates.
+        """
+        try:
+            if order == 'first':
+                coord = np.append(coord, np.zeros((len(coord), 1)), axis = 1)
+                if len(coord) == 1:
+                    grad = self.travel_time_fields[comp].gradient.value(coord)
+                else:
+                    grad = np.empty((len(coord), 2), dtype = float)
+                    for idx in range(len(coord)):
+                        grad[idx] = self.travel_time_fields[comp].gradient.value(coord[idx])[:-1]
+                
+            elif order == 'zero':
+                ind = self.get_ind(coord)
+                grad = self.get_gradient_ind(ind, comp)
+            
+            else:
+                raise ValueError("Expected 'zero' or 'first' as order argument.")
+            
+        except KeyError:
+            raise KeyError(f"Error: map for component '{comp}' not available!")
+
+        if unit:
+            return grad / np.linalg.norm(grad, axis = 1)[:, np.newaxis]    
+        else:
+            return grad
+
+    def get_gradient_ind(self, ind, comp = "direct"):
+        """
+        Returns gradient of traveltime field at index position in map.
+        """
+        try:
+            return self.travel_time_fields[comp].gradient.values[*ind][..., :-1]
+        except KeyError:
+            raise KeyError(f"Error: map for component '{comp}' not available!")
     
     def _coord_to_pykonal(self, coord, solver = None):
         return tuple(self._coord_to_node(coord, solver))
