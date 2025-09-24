@@ -12,13 +12,24 @@ class TravelTimeCalculator:
     def FromDict(cls, indict):
         obj = cls(**indict)
         return obj
+
+    @classmethod
+    def FromFile(cls, path):
+        """
+        Reads .npz file to initialize instance.
+        """
+        ttc_dict = dict(np.load(path))
+        metadata = ttc_dict.pop('metadata')
+        obj = cls(*metadata, travel_time_maps = ttc_dict)
+        return obj
+    
     def __init__(self, tx_z, z_min, z_max, r_max, num_pts_z, num_pts_r, travel_time_maps = {}):
 
         self.tx_z = tx_z
         self.tx_pos = [0.0, self.tx_z]
         
-        self.num_pts_z = num_pts_z
-        self.num_pts_r = num_pts_r
+        self.num_pts_z = int(num_pts_z)
+        self.num_pts_r = int(num_pts_r)
         
         self.z_min = z_min
         self.z_max = z_max
@@ -50,11 +61,27 @@ class TravelTimeCalculator:
             "r_max": self.r_max,
             "num_pts_z": self.num_pts_z,
             "num_pts_r": self.num_pts_r,
-            "travel_time_fields": self.travel_time_fields
+            "travel_time_maps": {comp: field.values for comp, field in self.travel_time_fields.items()}
         })
     
+    def save_to_disk(self, filename = 'ttc.npz', compressed = False):
+        """
+        Saves calculator metadata and traveltime maps to disk as .npz file.
+        """
+        metadata = np.array([self.tx_z,
+                             self.z_min,
+                             self.z_max,
+                             self.r_max,
+                             self.num_pts_z,
+                             self.num_pts_r], dtype = float)
+        travel_time_maps = {comp: field.values for comp, field in self.travel_time_fields.items()}
+        travel_time_maps['metadata'] = metadata
+        if compressed:
+            np.savez_compressed(filename, **travel_time_maps)
+        else:
+            np.savez(filename, **travel_time_maps)
+    
     def set_ior_and_solve(self, ior, grad_ior, num_big_rays = 0, reflection_at_z = 0.0):
-
         """
         Supports discontinuous piecewise ice models.
         
