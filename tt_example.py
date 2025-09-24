@@ -17,7 +17,7 @@ reflection_at_z = ice.z_air_boundary
 
 # Solve!
 nrays = 50  # Number of big rays to generate refracted map. To skip refracted map, set to 0.
-ttc = TravelTimeCalculator(tx_pos[1], (zmin, zmax), rmax, npts_z, npts_r)
+ttc = TravelTimeCalculator(tx_pos[1], zmin, zmax, rmax, npts_z, npts_r)
 ttc.set_ior_and_solve(ior, grad_ior, nrays, reflection_at_z)
 
 # Extract traveltime maps as ndarrays.

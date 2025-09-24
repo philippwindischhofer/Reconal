@@ -12,8 +12,7 @@ class TravelTimeCalculator:
     def FromDict(cls, indict):
         obj = cls(**indict)
         return obj
-    
-    def __init__(self, tx_z, z_range, r_max, num_pts_z, num_pts_r, travel_time_maps = {}):
+    def __init__(self, tx_z, z_min, z_max, r_max, num_pts_z, num_pts_r, travel_time_maps = {}):
 
         self.tx_z = tx_z
         self.tx_pos = [0.0, self.tx_z]
@@ -21,16 +20,17 @@ class TravelTimeCalculator:
         self.num_pts_z = num_pts_z
         self.num_pts_r = num_pts_r
         
-        self.z_range = z_range
+        self.z_min = z_min
+        self.z_max = z_max
         self.r_max = r_max
 
-        self.domain_start = np.array([0.0, self.z_range[0]])
-        self.domain_end = np.array([self.r_max, self.z_range[1]])
+        self.domain_start = np.array([0.0, self.z_min])
+        self.domain_end = np.array([self.r_max, self.z_max])
         self.domain_shape = np.array([self.num_pts_r, self.num_pts_z])    
 
         # determine voxel size
         self.delta_r = self.r_max / (self.num_pts_r - 1)
-        self.delta_z = (self.z_range[1] - self.z_range[0]) / (self.num_pts_z - 1)
+        self.delta_z = (self.z_max - self.z_min) / (self.num_pts_z - 1)
         
         self.travel_time_fields = {}
 
@@ -45,7 +45,8 @@ class TravelTimeCalculator:
     def to_dict(self):        
         return copy.deepcopy({
             "tx_z": self.tx_z,
-            "z_range": self.z_range,
+            "z_min": self.z_min,
+            "z_max": self.z_max,
             "r_max": self.r_max,
             "num_pts_z": self.num_pts_z,
             "num_pts_r": self.num_pts_r,
@@ -194,7 +195,7 @@ class TravelTimeCalculator:
         # Set up ray geometry
         src_ind = self._coord_to_pykonal([self.tx_pos])[0][1]
         boundary_z_ind = self._coord_to_pykonal([[0, reflection_at_z]])[0][1]
-        caustic, turnover_bounds, reflected_bounds = ray_utils.get_special_bounds(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, reflection_at_z)
+        caustic, turnover_bounds, reflected_bounds = ray_utils.get_special_bounds(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, reflection_at_z)
 
         rvals = np.arange(0, self.r_max + 1, self.delta_r)
         caustic_bounds = np.array([rvals, np.interp(rvals, caustic[0], caustic[1], left = np.nan)]).swapaxes(0, 1)
@@ -256,8 +257,8 @@ class TravelTimeCalculator:
             # Ray tracer: calculate individual rays & turnover points
             theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z) + 0.0001, 89.9999 # Exactly 90 degrees would propagate horizontally forever
             mesh = (np.linspace(theta_min, theta_max - 5, num_big_rays + 1), np.linspace(theta_min + 5, theta_max, num_big_rays + 1))
-            ray_data = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, mesh[0], step = self.delta_r),
-                        ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_range, mesh[1], step = self.delta_r))
+            ray_data = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[0], step = self.delta_r),
+                        ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[1], step = self.delta_r))
             tracer = ray_data[0][0], ray_data[1][0]
 
             # Set up refracted field template on full domain

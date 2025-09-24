@@ -24,7 +24,7 @@ def get_adaptive_dr(max_theta, ior, grad_ior, z, step):
         dr = abs(max_theta * ior(z) / grad)
         return min(dr, step)
 
-def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta):
+def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta):
     """
     Adaptive Snell's law raytracer for plane-stratified media.
     """
@@ -42,7 +42,7 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta):
     turnover = None
 
     for i in range(int(rmax / max_theta) + 1):
-        if ray[0, i] > rmax or ray[1, i] < z_range[0] or ray[1, i] > z_range[1]:
+        if ray[0, i] > rmax or ray[1, i] < z_min or ray[1, i] > z_max:
             break
         
         ray[0, i + 1] = ray[0, i] + dr  # Update r value (range)
@@ -63,7 +63,7 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta):
 
     return ray, turnover
 
-def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
+def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0):
     """
     Loop to execute raytracer. Corrects for possible division by 0 in case of rays traveling straight up or down.
     """
@@ -75,16 +75,16 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
     
     for i, theta in enumerate(mesh):
         if 0 < theta < 180: # Ray-tracer requires horizontal propagation; filter out strictly vertical rays
-            rays[i], turnover[i] = ray_tracer(theta, src, ior, grad_ior, rmax, z_range, step, max_theta)
+            rays[i], turnover[i] = ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta)
         elif theta == 0.0: # ray goes straight up
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] + np.arange(0, int(rmax / max_theta)) * step
-            rays[i][:, rays[i, 1] > z_range[1]] = np.nan
+            rays[i][:, rays[i, 1] > z_max] = np.nan
             rays[i, 2] = (rays[i, 1] - src[1]) * ior(rays[i, 1]) / speed_of_light
         elif theta == 180.0: # ray goes straight down
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] - np.arange(0, int(rmax / max_theta)) * step
-            rays[i][:, rays[i, 1] < z_range[0]] = np.nan
+            rays[i][:, rays[i, 1] < z_min] = np.nan
             rays[i, 2] = (src[1] - rays[i, 1]) * ior(rays[i, 1]) / speed_of_light
         else:
             raise ValueError("Launch angle must be between 0 and 180 (inclusive)")
@@ -92,16 +92,16 @@ def get_rays(src, ior, grad_ior, rmax, z_range, mesh, step = 1.0):
     return rays, turnover
 
 
-def get_special_bounds(src, ior, grad_ior, rmax, z_range, reflection_at_z, step = 1):
+def get_special_bounds(src, ior, grad_ior, rmax, z_min, z_max, reflection_at_z, step = 1):
     """
     Returns caustic (bound for direct and refracted maps), largest reflected ray (reflected map), and turnover line (direct map).
     """
-    theta_min = get_theta_min(src, ior, reflection_at_z) + 0.0001
+    theta_min = get_theta_min(src, ior, reflection_at_z) + 0.01
     if theta_min < 89.999:
         mesh = np.linspace(theta_min, 89.999, int((89.999 - theta_min) / 0.5))
     else:   # Source at surface
         mesh = [89.999]
-    rays, turnover = get_rays(src, ior, grad_ior, rmax, z_range, mesh, step)
+    rays, turnover = get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step)
     rvals = np.arange(0, rmax, step)
 
     # Generating caustic (direct map, big ray bounds)

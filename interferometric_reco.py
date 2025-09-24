@@ -31,14 +31,14 @@ def worker_rz(wargs):
     PA_string_pos[2] = 0.0
     
     # pick some reasonable domain
-    z_range = (-500, 150)
+    z_min, z_max = -500, 150
     r_max = 1000
     
-    # z_range = (-300, -230)
+    # z_min, z_max = -300, -230
     # r_max = 250
     
-    coord_start = [PA_string_pos[0],         PA_string_pos[1], z_range[0]]
-    coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_range[1]]
+    coord_start = [PA_string_pos[0],         PA_string_pos[1], z_min]
+    coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_max]
 
     ttcs = utils.load_ttcs(mappath, channels_to_include)
 
