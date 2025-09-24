@@ -1,6 +1,5 @@
 import defs, numpy as np
 from propagation import TravelTimeCalculator
-from NuRadioMC.utilities.medium import greenland_simple
 
 # Set up domain.
 rmax = 1000 # rmin always assumed to be 0
@@ -9,11 +8,10 @@ dr, dz = 1, 1   # Grid spacing in r, z directions
 npts_r, npts_z = int(rmax / dr) + 1, int((zmax - zmin) / dr) + 1    # Number of grid nodes (note +1)
 tx_pos = np.array([0, -60])  # Source position
 
-# In this example, we show how to use an ice model from NuRadioMC.
-# The built-in Reconal ior and grad_ior functions can be used directly when calling set_ior_and_solve()
-ice = greenland_simple()
-ior, grad_ior = defs.get_ior_from_nuradio(ice)
-reflection_at_z = ice.z_air_boundary
+# In this example, we use one of the built in Reconal ice models.
+# See full_tt_example.ipynb for an example with a NuRadioMC IceModel() object.
+ior, grad_ior = defs.ior_exp1, defs.grad_ior_exp1
+reflection_at_z = 0.0
 
 # Solve!
 nrays = 50  # Number of big rays to generate refracted map. To skip refracted map, set to 0.
