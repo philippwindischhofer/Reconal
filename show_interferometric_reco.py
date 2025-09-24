@@ -52,8 +52,8 @@ def show_interferometric_reco(recopath, outpath, detector,
         vmin = -cscale
         
     im = ax.imshow(np.flip(np.transpose(intmap_to_plot), axis = 0),
-                   extent = [intmap[axis_a][0] * defs.cvac, intmap[axis_a][-1] * defs.cvac,
-                             intmap[axis_b][0] * defs.cvac, intmap[axis_b][-1] * defs.cvac],
+                   extent = [intmap[axis_a][0], intmap[axis_a][-1],
+                             intmap[axis_b][0], intmap[axis_b][-1]],
                    cmap = "bwr", vmax = vmax, vmin = vmin, aspect = aspect)
     cbar = fig.colorbar(im, ax=ax, orientation='vertical', fraction=0.05, pad=0.04)
     cbar.ax.tick_params(labelsize = fs)
@@ -64,21 +64,21 @@ def show_interferometric_reco(recopath, outpath, detector,
     ax.tick_params(axis = "y", direction = "in", left = True, right = True, labelsize = fs)
     ax.tick_params(axis = "x", direction = "in", bottom = True, top = True, labelsize = fs)
 
-    ax.text(0.05, 0.92, f"{slice_axis} = {slice_val * defs.cvac:.1f} m", transform = ax.transAxes, fontsize = fs)
+    ax.text(0.05, 0.92, f"{slice_axis} = {slice_val:.1f} m", transform = ax.transAxes, fontsize = fs)
 
     if show_detector:
        pulser_pos = det.get_device_position(station_id = 11, devices = [1])       
-       pulser_r = np.sqrt(pulser_pos[1][0]**2 + pulser_pos[1][1]**2) * defs.cvac
-       # pulser_z = pulser_pos[1][2] * defs.cvac
+       pulser_r = np.sqrt(pulser_pos[1][0]**2 + pulser_pos[1][1]**2)
+       # pulser_z = pulser_pos[1][2]
        # ax.scatter(pulser_r, pulser_z)
-       ax.scatter(pulser_pos[1][0] * defs.cvac, pulser_pos[1][1] * defs.cvac, marker = "o", facecolor = "None", edgecolor = "black")
+       ax.scatter(pulser_pos[1][0], pulser_pos[1][1], marker = "o", facecolor = "None", edgecolor = "black")
     
     if show_surface:
         ax.axhline(0.0, ls = "dashed", color = "gray")
 
     if show_maxcorr_point:
         maxcorr_point = utils.get_maxcorr_point(reco["intmap"])
-        ax.scatter(maxcorr_point[plot_axes[0]] * defs.cvac, maxcorr_point[plot_axes[1]] * defs.cvac, color = "white", marker = "*")
+        ax.scatter(maxcorr_point[plot_axes[0]], maxcorr_point[plot_axes[1]], color = "white", marker = "*")
 
     ax.legend(loc = 'best', frameon = False)
         

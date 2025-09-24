@@ -15,7 +15,7 @@ class Detector:
         for channel in channels:
             for entry_id, entry in self.data["channels"].items():
                 if entry["station_id"] == station_id and entry["channel_id"] == channel:
-                    channel_positions[channel] = [entry["ant_position_x"] / defs.cvac, entry["ant_position_y"] / defs.cvac, entry["ant_position_z"] / defs.cvac]
+                    channel_positions[channel] = [entry["ant_position_x"], entry["ant_position_y"], entry["ant_position_z"]]
 
         return channel_positions
 
@@ -35,6 +35,6 @@ class Detector:
         for device in devices:
             for entry_id, entry in self.data["devices"].items():
                 if entry["station_id"] == station_id and entry["device_id"] == device:
-                    device_positions[device] = [entry["ant_position_x"] / defs.cvac, entry["ant_position_y"] / defs.cvac, entry["ant_position_z"] / defs.cvac]
+                    device_positions[device] = [entry["ant_position_x"], entry["ant_position_y"], entry["ant_position_z"]]
 
         return device_positions
