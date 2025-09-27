@@ -36,7 +36,7 @@ class CorrScoreProvider:
         return np.interp(t_ab, tvals, corrvals)
     
 def calc_corr_score(channel_signals, channel_times, pts, ttcs, channel_pairs_to_include, channel_positions, cable_delays,
-                    comps = ["direct_ice", "direct_air", "reflected"]):
+                    comps = ["direct", "reflected"]):
     
     csp = CorrScoreProvider(channel_signals, channel_times, channel_pairs_to_include)
 
