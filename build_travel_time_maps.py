@@ -4,7 +4,7 @@ from detector import Detector
 import numpy as np
 
 def build_travel_time_maps(outpath, channel_positions, z_min = -650, z_max = 150, r_max = 1100, num_pts_z = 1000, num_pts_r = 1000,
-                           ior_model = defs.ior_exp3):
+                           ior_model = defs.ior_exp3, grad_ior_model = defs.grad_ior_exp3):
 
     z_min_map = z_min - 1
     z_max_map = z_max + 1
@@ -19,7 +19,7 @@ def build_travel_time_maps(outpath, channel_positions, z_min = -650, z_max = 150
                                    r_max = r_max_map,
                                    num_pts_z = 5 * num_pts_z,
                                    num_pts_r = 5 * num_pts_r)
-        ttc.set_ior_and_solve(ior_model)
+        ttc.set_ior_and_solve(ior_model, grad_ior_model)
 
         mapdata[channel] = ttc.to_dict()
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--outpath", action = "store", dest = "outpath")
     parser.add_argument("--detector", action = "store", dest = "detectorpath")
-    parser.add_argument("--channels", nargs = "+", action = "store", dest = "channels_to_include", default = [0, 1, 2, 3, 5, 6, 7, 22, 23])
+    parser.add_argument("--channels", type = int, nargs = "+", action = "store", dest = "channels_to_include", default = [0, 1, 2, 3, 5, 6, 7, 22, 23])
     parser.add_argument("--station", type = int, default = 11, dest = "station_id")
     args = parser.parse_args()
 
