@@ -31,14 +31,14 @@ def worker_rz(wargs):
     PA_string_pos[2] = 0.0
     
     # pick some reasonable domain
-    z_range = (-500, 150)
-    r_max = 1000
+    z_min, z_max = -200, 50
+    r_max = 400
     
-    # z_range = (-300, -230)
+    # z_min, z_max = -300, -230
     # r_max = 250
     
-    coord_start = [PA_string_pos[0],         PA_string_pos[1], z_range[0]]
-    coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_range[1]]
+    coord_start = [PA_string_pos[0],         PA_string_pos[1], z_min]
+    coord_end =   [PA_string_pos[0] + r_max, PA_string_pos[1], z_max]
 
     ttcs = utils.load_ttcs(mappath, channels_to_include)
 
@@ -73,13 +73,13 @@ def worker_xy(wargs):
     outpath = os.path.join(outdir, f"{basename}_xy.pkl")
     print(f"Reconstructing {eventpath} -> {outpath}")
     
-    x_range = (-250, 250)
-    y_range = (-250, 250)
+    x_range = (-100, 100)
+    y_range = (-100, 100)
 
     # x_range = (0, 150)
     # y_range = (-150, -50)
 
-    z_slice = -80 / defs.cvac
+    z_slice = -80
     
     coord_start = [x_range[0], y_range[0], z_slice]
     coord_end =   [x_range[1], y_range[1], z_slice]
@@ -132,7 +132,7 @@ def worker_ang(wargs):
     # azimuth_range = (-1.5, -0.5)
     # elevation_range = (0.3, 0.6)
     
-    radius = 38 / defs.cvac
+    radius = 38
     origin_xyz = channel_positions[0]  # use PA CH0- as origin of the coordinate system
 
     ttcs = utils.load_ttcs(mappath, channels_to_include)

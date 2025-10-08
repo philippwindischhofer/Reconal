@@ -16,8 +16,8 @@ def show_map(ax, intmap, axis_a, axis_b, cmap = "bwr", aspect = "auto", xlim = N
         vmin, vmax = -cscale, cscale
 
     im = ax.imshow(np.flip(np.transpose(intmap_to_plot), axis = 0),
-                   extent = [intmap[axis_a][0] * defs.cvac, intmap[axis_a][-1] * defs.cvac,
-                             intmap[axis_b][0] * defs.cvac, intmap[axis_b][-1] * defs.cvac],
+                   extent = [intmap[axis_a][0], intmap[axis_a][-1],
+                             intmap[axis_b][0], intmap[axis_b][-1]],
                    cmap = cmap, vmax = vmax, vmin = vmin, aspect = aspect, interpolation = "bicubic")
     
     if xlim:
