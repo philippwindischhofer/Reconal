@@ -24,7 +24,7 @@ def get_adaptive_dr(max_theta, ior, grad_ior, z, step):
         dr = abs(max_theta * ior(z) / grad)
         return min(dr, step)
 
-def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta):
+def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta, midpoint):
     """
     Adaptive Snell's law raytracer for plane-stratified media.
     """
@@ -33,6 +33,8 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta):
     
     theta = np.radians(theta)
 
+    if theta == np.pi / 2:
+        theta -= 0.00001    # Correct so that a 90 degree ray will bend
     if theta > np.pi / 2:
         theta += np.pi
 
@@ -49,7 +51,10 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta):
         ray[1, i + 1] = ray[1, i] + dr / np.tan(theta)  # Update z value (depth)
         ray[2, i + 1] = ray[2, i] + np.abs(dr / np.sin(theta)) * ior_old / speed_of_light # Update traveltime (dt = ds * n / c)
         
-        ior_new = ior(ray[1, i + 1])
+        if midpoint:    # WILL DELETE LATER
+            ior_new = ior(np.average(ray[1, i:i+2]))
+        else:
+            ior_new = ior(ray[1, i + 1])
         
         if (ior_old / ior_new) * np.sin(theta) <= 1:
             theta = np.arcsin((ior_old / ior_new) * np.sin(theta)) # Snell's law
@@ -63,7 +68,7 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta):
 
     return ray, turnover
 
-def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0):
+def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0, midpoint = True):
     """
     Loop to execute raytracer. Corrects for possible division by 0 in case of rays traveling straight up or down.
     """
@@ -75,7 +80,7 @@ def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0):
     
     for i, theta in enumerate(mesh):
         if 0 < theta < 180: # Ray-tracer requires horizontal propagation; filter out strictly vertical rays
-            rays[i], turnover[i] = ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta)
+            rays[i], turnover[i] = ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta, midpoint)
         elif theta == 0.0: # ray goes straight up
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] + np.arange(0, int(rmax / max_theta)) * step
