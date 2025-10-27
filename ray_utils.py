@@ -1,8 +1,6 @@
 import numpy as np
 from scipy.constants import c
 
-speed_of_light = c / 1e9
-
 def get_theta_min(src, ior, reflection_at_z):
     """
     Returns angle (in degrees) such that turnover occurs at reflection depth.
@@ -49,7 +47,7 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta, m
         
         ray[0, i + 1] = ray[0, i] + dr  # Update r value (range)
         ray[1, i + 1] = ray[1, i] + dr / np.tan(theta)  # Update z value (depth)
-        ray[2, i + 1] = ray[2, i] + np.abs(dr / np.sin(theta)) * ior_old / speed_of_light # Update traveltime (dt = ds * n / c)
+        ray[2, i + 1] = ray[2, i] + np.abs(dr / np.sin(theta)) * ior_old / (c / 1e9) # Update traveltime (dt = ds * n / c)
         
         if midpoint:    # WILL DELETE LATER
             ior_new = ior(np.average(ray[1, i:i+2]))
@@ -68,14 +66,14 @@ def ray_tracer(theta, src, ior, grad_ior, rmax, z_min, z_max, step, max_theta, m
 
     return ray, turnover
 
-def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0, midpoint = True):
+def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0, midpoint = False):
     """
     Loop to execute raytracer. Corrects for possible division by 0 in case of rays traveling straight up or down.
     """
 
     max_theta = 0.001
 
-    rays = np.full((len(mesh), 3, int(rmax // max_theta) + 1), np.nan)
+    rays = np.full((len(mesh), 3, int(rmax / max_theta)), np.nan)
     turnover = np.full((len(mesh), 3), np.nan)
     
     for i, theta in enumerate(mesh):
@@ -85,12 +83,12 @@ def get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step = 1.0, midpoint 
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] + np.arange(0, int(rmax / max_theta)) * step
             rays[i][:, rays[i, 1] > z_max] = np.nan
-            rays[i, 2] = (rays[i, 1] - src[1]) * ior(rays[i, 1]) / speed_of_light
+            rays[i, 2] = (rays[i, 1] - src[1]) * ior(rays[i, 1]) / (c / 1e9)
         elif theta == 180.0: # ray goes straight down
             rays[i, 0] = src[0]
             rays[i, 1] = src[1] - np.arange(0, int(rmax / max_theta)) * step
             rays[i][:, rays[i, 1] < z_min] = np.nan
-            rays[i, 2] = (src[1] - rays[i, 1]) * ior(rays[i, 1]) / speed_of_light
+            rays[i, 2] = (src[1] - rays[i, 1]) * ior(rays[i, 1]) / (c / 1e9)
         else:
             raise ValueError("Launch angle must be between 0 and 180 (inclusive)")
 
@@ -127,9 +125,4 @@ def get_special_bounds(src, ior, grad_ior, rmax, z_min, z_max, reflection_at_z, 
     reflected_bounds = reflected_bounds[~np.isnan(reflected_bounds).any(axis = 1)]
     reflected_bounds = reflected_bounds[reflected_bounds[:, 0] >= turnover[0, 0]].swapaxes(0, 1)
 
-    # Generating turnover line (direct map)
-    turnover = np.concatenate((turnover, np.swapaxes(rays[-1], 0, 1)), axis = 0)
-    turnover = turnover[~np.isnan(turnover).any(axis = 1)] # Remove NaN values 
-    turnover = turnover[turnover[:, 1].argsort()].swapaxes(0, 1) # Sort by zvals
-
-    return caustic, turnover, reflected_bounds
+    return caustic, reflected_bounds
