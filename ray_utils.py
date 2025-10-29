@@ -105,6 +105,10 @@ def get_special_bounds(src, ior, grad_ior, rmax, z_min, z_max, reflection_at_z, 
     else:   # Source at surface
         mesh = [89.999]
     rays, turnover = get_rays(src, ior, grad_ior, rmax, z_min, z_max, mesh, step)
+
+    if np.isnan(turnover[0]).all(): # Domain too small to include caustic
+        return None, None
+    
     rvals = np.arange(0, rmax, step)
 
     # Generating caustic (direct map, big ray bounds)

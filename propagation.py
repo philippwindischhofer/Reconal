@@ -1,6 +1,6 @@
 import pykonal, copy
 import numpy as np
-from . import ray_utils
+import ray_utils
 from scipy.interpolate import interpn
 from scipy.constants import c
 
@@ -71,9 +71,9 @@ class TravelTimeCalculator:
                 icemodel = icemodel
                 )
     
-    def set_ior_and_solve(self, ior, grad_ior, num_big_rays = 0, reflection_at_z = 0.0):
+    def set_ior_and_solve(self, ior, grad_ior, num_big_rays = 0, reflection_at_z = 0.0, early_only = False):
         """
-        Supports discontinuous piecewise ice models.
+        Supports discontinuous piecewise ice models. Returns `True` when complete.
         
         Parameters
         __________
@@ -85,6 +85,8 @@ class TravelTimeCalculator:
             Number of big rays used to calculate refracted maps. Defaults to 0 (in this case no refracted map generated).
         reflection_at_z : float, optional
             z value of air-ice discontinuity. Defaults to z = 0.
+        early_only : bool, optional
+            Defaults to `False`. If `True`, only first arrivals are generated.
         """
 
         def _get_solver(point = False):    
@@ -129,10 +131,10 @@ class TravelTimeCalculator:
                                 bounds[np.nanargmax(bounds[..., 0], axis = 0), np.arange(bounds.shape[1])]))
             
             # Interpolate caustic depths, times onto gridded r-values
-            caustic_vals = np.stack((np.interp(rvals, caustic[0], caustic[1], left = np.nan, right = np.nan),
-                                     np.interp(rvals, caustic[0], caustic[2], left = np.nan, right = np.nan)), axis = 1)
-            
-            if np.isfinite(caustic_vals).any(): # Replace top ray bound with caustic between contact points
+            if caustic is not None:    
+                caustic_vals = np.stack((np.interp(rvals, caustic[0], caustic[1], left = np.nan, right = np.nan),
+                                        np.interp(rvals, caustic[0], caustic[2], left = np.nan, right = np.nan)), axis = 1)
+                # Replace top ray bound with caustic between contact points
                 ind1 = np.nanargmin(np.square(caustic_vals[:, 0] - bounds[0, :, 0]))
                 ind2 = np.nanargmin(np.square(caustic_vals[:, 0] - bounds[1, :, 0])) + 1
                 big_ray[1][ind1 : ind2] = caustic_vals[ind1 : ind2]
@@ -212,18 +214,20 @@ class TravelTimeCalculator:
         boundary_z_ind = self._coord_to_pykonal([[0, reflection_at_z]])[0][1]
         caustic, reflected = ray_utils.get_special_bounds(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, reflection_at_z)
 
-        rvals = np.linspace(0, self.r_max, self.num_pts_r) 
-        caustic_nodes = np.array([rvals, np.interp(rvals, caustic[0], caustic[1], left = np.nan)]).swapaxes(0, 1)
-        caustic_nodes = self._coord_to_node(caustic_nodes[np.isfinite(caustic_nodes).all(axis = 1)])
-        reflected_nodes = np.array([rvals, np.interp(rvals, reflected[0], reflected[1], left = np.nan, right = np.nan)]).swapaxes(0, 1)
-        reflected_nodes = self._coord_to_node(reflected_nodes[np.isfinite(reflected_nodes).all(axis = 1)])
+        if caustic is not None:
+            rvals = np.linspace(0, self.r_max, self.num_pts_r) 
+            caustic_nodes = np.array([rvals, np.interp(rvals, caustic[0], caustic[1], left = np.nan)]).swapaxes(0, 1)
+            caustic_nodes = self._coord_to_node(caustic_nodes[np.isfinite(caustic_nodes).all(axis = 1)])
+            reflected_nodes = np.array([rvals, np.interp(rvals, reflected[0], reflected[1], left = np.nan, right = np.nan)]).swapaxes(0, 1)
+            reflected_nodes = self._coord_to_node(reflected_nodes[np.isfinite(reflected_nodes).all(axis = 1)])
 
         # Calculate direct rays in the ice
         solver = _get_solver(point = True)
         solver.src_loc = self.tx_pos + [0]
         solver._ntheta = 2
 
-        _set_boundary_condition(solver, caustic_nodes)
+        if caustic is not None:
+            _set_boundary_condition(solver, caustic_nodes)
 
         try:
             solver.known[:, boundary_z_ind + 2:] = True # Prevent solution from propagating into air
@@ -233,9 +237,6 @@ class TravelTimeCalculator:
         point_solve(solver, src_ind)
 
         self.travel_time_fields['early'] = solver.traveltime
-        
-        for node in caustic_nodes:  # Eliminate non-raytracing shadow zone solutions
-            self.travel_time_fields['early'].values[node[0], node[1]:] = np.inf
 
         # Calculate rays transmitted into the air
         solver = _get_solver()
@@ -248,7 +249,21 @@ class TravelTimeCalculator:
 
         self.travel_time_fields['early'].values[:, boundary_z_ind + 1:] = solver.traveltime.values[:, boundary_z_ind + 1:]
 
+        # Eliminate non-raytracing reflected solutions
+        if caustic is not None: # Check that such solutions exist in our domain
+            for node in caustic_nodes:
+                self.travel_time_fields['early'].values[node[0], node[1]:] = np.inf
+
+        if early_only:  # Save earliest travel-times
+            return True
+
         # Calculate reflected rays: place a line source at the air/ice boundary
+
+        self.travel_time_fields['late'] = pykonal.fields.ScalarField3D(coord_sys = 'cartesian')
+        self.travel_time_fields['late'].min_coords = self.domain_start[0], self.domain_start[1], 0
+        self.travel_time_fields['late'].npts = self.num_pts_r, boundary_z_ind + 1, 1
+        self.travel_time_fields['late'].node_intervals = self.delta_r, self.delta_z, 1
+
         solver = _get_solver()
         solver.traveltime.values[:, boundary_z_ind] = self.travel_time_fields["early"].values[:, boundary_z_ind]
         try:
@@ -260,13 +275,14 @@ class TravelTimeCalculator:
             solver.trial.push(r_ind, boundary_z_ind, 0)
         solver.solve()
 
-        for node in reflected_nodes:
-            solver.traveltime.values[node[0], node[1]:] = np.inf # Eliminate non-raytracing solutions from reflected map
+        self.travel_time_fields['late'].values = solver.traveltime.values[:, :boundary_z_ind + 1]
         
-        solver.traveltime.values[reflected_nodes[-1, 0]:] = np.inf
-        solver.traveltime.values[:, boundary_z_ind + 1:] = np.inf # this is now unphysical in the air
-
-        self.travel_time_fields['late'] = solver.traveltime
+        # Eliminate non-raytracing reflected solutions
+        if caustic is not None: # Check that such solutions exist in our domain
+            for node in reflected_nodes:
+                self.travel_time_fields['late'].values[node[0], node[1]:] = np.inf
+        
+            self.travel_time_fields['late'].values[reflected_nodes[-1, 0]:] = np.inf
 
         # Calculate refracted rays: big rays method
 
@@ -383,7 +399,8 @@ class TravelTimeCalculator:
                     values = np.copy(solver.traveltime.values)
                     big_ray_map[~np.isfinite(big_ray_map)] = interpn(points, values, eval_at, bounds_error = False, fill_value = np.inf)[~np.isfinite(big_ray_map)]  
             
-            self.travel_time_fields['late'].values[~np.isfinite(self.travel_time_fields['late'].values)] = big_ray_map[~np.isfinite(self.travel_time_fields['late'].values)]
+            self.travel_time_fields['late'].values[~np.isfinite(self.travel_time_fields['late'].values)] = big_ray_map[:, :boundary_z_ind + 1][~np.isfinite(self.travel_time_fields['late'].values)]
+        return True
 
     def get_ind(self, coord):
         return np.transpose(self._coord_to_node(coord))        
@@ -430,7 +447,7 @@ class TravelTimeCalculator:
                 raise ValueError("Expected 'zero' or 'first' as order argument.")
         
         except KeyError:
-                    raise KeyError(f"Error: map for component '{comp}' not available!")
+            raise KeyError(f"Error: map for component '{comp}' not available!")
 
     def get_travel_time_ind(self, ind, comp = "direct"):
         """
