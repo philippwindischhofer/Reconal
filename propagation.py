@@ -121,10 +121,10 @@ class TravelTimeCalculator:
                 rvals = np.linspace(0, self.r_max, self.num_pts_r)
 
             # Interpolate raytracer depths, times onto gridded r-values
-            bounds = np.array([np.stack((np.interp(rvals, rays[0][ray_number, 0], rays[0][ray_number, 1]),  # First bounding ray (zvals)
-                                         np.interp(rvals, rays[0][ray_number, 0], rays[0][ray_number, 2])), axis = 1),  # (traveltimes)
-                               np.stack((np.interp(rvals, rays[1][ray_number + 1, 0], rays[1][ray_number + 1, 1]),  # Second bounding ray (zvals)
-                                         np.interp(rvals, rays[1][ray_number + 1, 0], rays[1][ray_number + 1, 2])), axis = 1)]) # (traveltimes)
+            bounds = np.array([np.stack((np.interp(rvals, rays[0][ray_number][0],       rays[0][ray_number][1]),                    # First bounding ray (zvals)
+                                         np.interp(rvals, rays[0][ray_number][0],       rays[0][ray_number][2])), axis = 1),        # (traveltimes)
+                               np.stack((np.interp(rvals, rays[1][ray_number + 1][0],   rays[1][ray_number + 1][1]),                # Second bounding ray (zvals)
+                                         np.interp(rvals, rays[1][ray_number + 1][0],   rays[1][ray_number + 1][2])), axis = 1)])   # (traveltimes)
             
             # Sort into top bounding ray, bottom bounding ray
             big_ray = np.array((bounds[np.nanargmin(bounds[..., 0], axis = 0), np.arange(bounds.shape[1])],
@@ -290,8 +290,8 @@ class TravelTimeCalculator:
             # Raytracer: calculate individual rays & turnover points
             theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z) + 0.1, 89.9999 # Exactly 90 degrees would propagate horizontally forever
             mesh = (np.linspace(theta_min, theta_max - 5, num_big_rays + 1), np.linspace(theta_min + 5, theta_max, num_big_rays + 1))
-            rays = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[0], step = self.delta_r, midpoint = True)[0],
-                        ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[1], step = self.delta_r, midpoint = True)[0])
+            rays = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[0], step = self.delta_r)[0],
+                    ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[1], step = self.delta_r)[0])
             S = 4   # node tolerance; ray thickness which triggers adaptive mesh refinement
         
         for iR in range(num_big_rays):
