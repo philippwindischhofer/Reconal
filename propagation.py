@@ -288,7 +288,7 @@ class TravelTimeCalculator:
 
         if num_big_rays > 0:
             # Raytracer: calculate individual rays & turnover points
-            theta_min, theta_max = ray_utils.get_theta_min(self.tx_pos, ior, reflection_at_z) + 0.1, 89.9999 # Exactly 90 degrees would propagate horizontally forever
+            theta_min, theta_max = ray_utils.get_grazing_angle(self.tx_pos, ior, reflection_at_z) + 0.1, 89.9999 # Exactly 90 degrees would propagate horizontally forever
             mesh = (np.linspace(theta_min, theta_max - 5, num_big_rays + 1), np.linspace(theta_min + 5, theta_max, num_big_rays + 1))
             rays = (ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[0], step = self.delta_r)[0],
                     ray_utils.get_rays(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, mesh[1], step = self.delta_r)[0])
