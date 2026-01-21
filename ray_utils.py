@@ -5,11 +5,12 @@ def get_grazing_angle(src, ior, z_turnover):
     """
     Returns angle (in degrees) such that turnover occurs at reflection depth.
     """
+    z_turnover -= 0.5   # small numerical tolerance to account for fact that raytracer can overshoot
     if ior(z_turnover) <= ior(src[1]):
         theta = np.arcsin(ior(z_turnover) / ior(src[1])) # Snell's law
         return np.degrees(theta)
     else:
-        return 0
+        return None
     
 def get_adaptive_dr(max_dtheta, ior, grad_ior, z, step):
     """
@@ -108,7 +109,7 @@ def get_rays(src, ior, grad_ior, rmax, zmin, zmax, mesh, step = 1.0):
     return rays, turnover
 
 def get_edge(rays, turnover, rmax, step, which = 'upper'):
-    rvals = np.arange(0, rmax, step)
+    rvals = np.arange(0, rmax + step, step)
     edge = np.full((len(rvals), 3), np.nan)
 
     if which == 'upper':
@@ -119,35 +120,96 @@ def get_edge(rays, turnover, rmax, step, which = 'upper'):
         bound = np.inf
     
     rays_interp = np.empty((len(rays), 2, len(rvals)))
+    
     for i, ray in enumerate(rays):
         rays_interp[i] = np.interp(rvals, ray[0], ray[1], left = bound, right = bound), np.interp(rvals, ray[0], ray[2], left = np.nan, right = np.nan)
+    
     idxs = choose(rays_interp[:, 0], axis = 0)
+
     edge = rays_interp.swapaxes(1,2)[idxs, np.arange(len(rvals))]
     edge = np.concatenate((rvals[:, np.newaxis], edge), axis = 1)
-    edge = edge[edge[:, 0] >= turnover[0][0]].swapaxes(0, 1)
+    edge[edge[:, 0] < turnover[0][0]] = np.nan
     edge[np.isinf(edge)] = np.nan
-    return edge
-
-def get_special_bounds(src, ior, grad_ior, rmax, zmin, zmax, reflection_at_z, step = 1.0):
-    """
-    Returns caustic (bound for direct maps), largest reflected ray (reflected map), and turnover line (direct map).
-    """
     
-    theta_min = get_grazing_angle(src, ior, reflection_at_z) + 0.01
-    if theta_min < 89.999:
-        mesh = np.arange(theta_min, 89.999, 1)
-    else:   # Source at surface
-        mesh = [89.999]
-    rays, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, mesh, step)
+    return edge.swapaxes(0, 1)
 
+def get_caustic(src, ior, grad_ior, rmax, zmin, zmax, z_bounds = [0.0], step = 1.0):
+    """
+    Returns simple or swallowtail caustic (including shadow zone boundary).
+    """
+
+    if len(z_bounds) != 1 and len(z_bounds) != 3:
+        raise ValueError("Coming soon?")
+    
+    caustic = {}    # Contains different sections of the caustic (SZB, pocket sides 1,2,3)
+    critical_angles = [get_grazing_angle(src, ior, z) for z in z_bounds]
+    critical_angles = [item for item in critical_angles if item is not None]
+    critical_angles.append(90)
+    tol = 0.01  # numerics...
+
+    # The SZB is always part of the caustic; find this first
+    ray_mesh = np.linspace(critical_angles[0], critical_angles[-1] - tol, 100)
+    rays, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, ray_mesh, step)
+    
     if np.isnan(turnover[0]).all(): # Domain too small to include caustic
-        return None, None
+        return None
 
-    # Generating caustic (direct map, big ray bounds)
-    caustic = get_edge(rays, turnover, rmax, step)
+    caustic[0] = get_edge(rays, turnover, rmax, step)
+    
+    if len(z_bounds) > 1 and src[1] < z_bounds[-1]: # 3-layer exponential produces a swallowtail caustic at certain depths.
 
-    # Generating largest reflected ray (reflected map)
-    reflected_bounds = rays[0][:-1].swapaxes(0, 1)
-    reflected_bounds = reflected_bounds[reflected_bounds[:, 0] >= turnover[0][0]].swapaxes(0, 1)
+        # start by finding boundary of "bottom bundle" of rays
+        ray_mesh = np.linspace(critical_angles[-2] + tol, critical_angles[-1] - tol, 100)
+        rays, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, ray_mesh, step)
+        caustic[3] = get_edge(rays, turnover, rmax, step)
 
-    return caustic, reflected_bounds
+        # go a layer up. this is the problematic layer, so we throw more rays
+        ray_mesh = np.linspace(critical_angles[1] + tol, critical_angles[2] - tol, 200)
+        rays, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, ray_mesh, step)
+
+        # find the problem rays (if any). these are rays that don't intersect the typical shadow zone boundary
+        # and therefore must focus at the bottom of the pocket, forming the swallowtail shape
+        mask = []
+        for i, ray in enumerate(rays):
+            ray_interp = np.array([caustic[0][0], np.interp(caustic[0][0], ray[0], ray[1])])
+            dist_to_szb = np.abs(ray_interp[1] - caustic[0][1])
+            if np.any(dist_to_szb < step):
+                continue
+            else:
+                mask.append(i)
+        problem_rays = [rays[i] for i in mask]   # lot of annoying list comprehension because ray arrays are not necessarily the same size
+        if problem_rays:
+            caustic[2] = get_edge(problem_rays, turnover, rmax, step, which = 'lower')
+            caustic[2][:, caustic[2][1] - zmin < 5] = np.nan
+            critical_angles.append(ray_mesh[mask[0]])
+            critical_angles.sort()
+        
+        # remove the now-handled problem rays and get the last side of the swallowtail
+        rays = [ray for i, ray in enumerate(rays) if i not in mask]
+        caustic[1] = get_edge(rays, turnover, rmax, step)
+
+        if problem_rays:
+            diffs = np.abs(caustic[1][1] - caustic[2][1])
+            caustic[1][:, np.nanargmin(diffs):] = np.nan
+            caustic[2][:, np.nanargmin(diffs):] = np.nan
+
+            diffs = np.abs(caustic[3][1] - caustic[2][1])
+            caustic[3][:, :np.nanargmin(diffs)] = np.nan
+            caustic[2][:, :np.nanargmin(diffs)] = np.nan
+
+    return caustic, critical_angles
+
+def get_reflected_bound(src, ior, grad_ior, rmax, zmin, zmax, reflection_at_z, step = 1.0):
+    """
+    Returns rightmost reflected ray.
+    """
+    theta_min = get_grazing_angle(src, ior, reflection_at_z) + 0.01
+    
+    if theta_min > 89.999:
+        theta_min = 89.999
+    
+    ray, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, [theta_min], step)
+    reflected_bound = ray[0][:-1].swapaxes(0, 1)
+    reflected_bound = reflected_bound[reflected_bound[:, 0] >= turnover[0][0]].swapaxes(0, 1)
+
+    return reflected_bound
