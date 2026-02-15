@@ -7,16 +7,10 @@ This software requires at least Python 3.11!
 ```
 python -m venv env
 source env/bin/activate
-python -m pip install -r requirements.txt
-```
-
-If you plan to generate refracted maps, be sure to install the [forked version](https://github.com/mcb28/pykonal) of `pykonal`.
-
-```
-git clone https://github.com/mcb28/pykonal.git
-cd pykonal
+cd path/to/reconal
 pip install .
 ```
+The above will install the [forked version](https://github.com/mcb28/pykonal) of `pykonal` (required for generating accurate refracted maps).
 
 ## Example reconstructions
 
