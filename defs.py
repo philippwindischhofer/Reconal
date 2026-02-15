@@ -86,7 +86,7 @@ def ior_exp3(z):
         firn_mask = np.argwhere(np.logical_and(z <= z1, z > z2))
         bubbly_mask = np.argwhere(z <= z2)
 
-        iorvals = np.zeros_like(z)    
+        iorvals = np.zeros_like(z, dtype = float)    
         iorvals[snow_mask] = iorfunc_snow(z[snow_mask])
         iorvals[firn_mask] = iorfunc_firn(z[firn_mask])
         iorvals[bubbly_mask] = iorfunc_bubbly(z[bubbly_mask])
@@ -134,7 +134,7 @@ def grad_ior_exp3(z):
         firn_mask = np.argwhere(np.logical_and(z <= z1, z > z2))
         bubbly_mask = np.argwhere(z <= z2)
 
-        grad_iorvals = np.zeros_like(z)    
+        grad_iorvals = np.zeros_like(z, dtype = float)    
         grad_iorvals[snow_mask] = grad_iorfunc_snow(z[snow_mask])
         grad_iorvals[firn_mask] = grad_iorfunc_firn(z[firn_mask])
         grad_iorvals[bubbly_mask] = grad_iorfunc_bubbly(z[bubbly_mask])

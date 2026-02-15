@@ -52,7 +52,7 @@ if __name__ == "__main__":
     else:
         ior, grad_ior = defs.ior_exp3, defs.grad_ior_exp3
         z_bounds = [0.0, -14.9, -80.5]
-        icestr = 'greenland_exp_3'
+        icestr = 'ior3' # to match with c8 raytracer output
 
     if (args.dz > 0.5 or args.dr > 0.5) and not args.early_only:
         warnings.warn(f'Step sizes greater than 0.5 m may lead to refracted inaccuracies. Your step sizes are dr = {args.dr}, dz = {args.dz}.', category=RuntimeWarning)

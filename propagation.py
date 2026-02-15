@@ -71,7 +71,7 @@ class TravelTimeCalculator:
                 icemodel = icemodel
                 )
     
-    def set_ior_and_solve(self, ior, grad_ior, num_big_rays = 20, z_bounds = [0.0], early_only = False):
+    def set_ior_and_solve(self, ior, grad_ior, dtheta = 1.5, z_bounds = [0.0], early_only = False):
 
         """
         Supports discontinuous piecewise ice models. Returns `True` when complete.
@@ -82,10 +82,11 @@ class TravelTimeCalculator:
             Function which returns index of refraction n(z). Should accept floats or ndarrays of z-values (not 3d coordinates).
         grad_ior : function
             Function which returns dn/dz at depth z. See ior.
-        num_big_rays : int
-            Number of big rays used to calculate refracted maps. Defaults to 0 (in this case no refracted map generated).
+        dtheta : float
+            Degree spacing within big rays used to generate refracted maps. Defaults to 1.5.
         z_bounds : list, optional
-            z-values of interval bounds for piecewise function, ordered shallowest to deepest. Defaults to `[0.0]` (i.e., air-ice discontinuity in a simple ice model).
+            z-values of interval bounds for piecewise function, ordered shallowest to deepest. \n
+            Defaults to `[0.0]` (i.e., air-ice discontinuity in a simple ice model). For the 3-part exponential, pass in `[0.0, -14.9, -80.5]`.
         early_only : bool, optional
             Defaults to `False`. If `True`, only first arrivals are generated.
         """
@@ -259,7 +260,7 @@ class TravelTimeCalculator:
             for node in szb_nodes:
                 self.travel_time_fields['early'].values[node[0], node[1]:] = np.inf
 
-        if early_only:  # Save earliest travel-times
+        if early_only:  # Save only earliest travel-times
             return True
 
         # Calculate reflected rays: place a line source at the air/ice boundary
@@ -296,125 +297,123 @@ class TravelTimeCalculator:
             self.travel_time_fields['late'].values[reflected_nodes[-1, 0]:] = np.inf
 
         # Calculate refracted rays: big rays method
+        raytracing_params = (self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max)
 
-        if num_big_rays > 0:
-            raytracing_params = (self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max)
-            nrays_layer = num_big_rays // len(z_bounds)
+        for iA in range(len(critical_angles) - 1):
+            # Raytracer: calculate individual rays & turnover points
+            theta_min, theta_max = critical_angles[iA], critical_angles[iA + 1]
+            nrays = int((theta_max - theta_min) // dtheta) + 1
+            mesh = np.linspace(theta_min, theta_max - 4, nrays), np.linspace(theta_min + 4, theta_max, nrays)
+            rays = ray_utils.get_rays(*raytracing_params, mesh[0], step = self.delta_r)[0], ray_utils.get_rays(*raytracing_params, mesh[1], step = self.delta_r)[0]
+            S = 4 # node tolerance; ray thickness which triggers adaptive mesh refinement
 
-            for iA in range(len(critical_angles) - 1):
-                # Raytracer: calculate individual rays & turnover points
-                theta_min, theta_max = critical_angles[iA], critical_angles[iA + 1]
-                mesh = np.linspace(theta_min, theta_max - 5, nrays_layer + 1), np.linspace(theta_min + 5, theta_max, nrays_layer + 1)
-                rays = ray_utils.get_rays(*raytracing_params, mesh[0], step = self.delta_r)[0], ray_utils.get_rays(*raytracing_params, mesh[1], step = self.delta_r)[0]
-                S = 4 # node tolerance; ray thickness which triggers adaptive mesh refinement
+            for iR in range(len(rays[0])-1):
+                solver = _get_solver()
+                nodes, times = _get_big_ray(rays, caustic, iR, iA, solver)
 
-                for iR in range(nrays_layer):
-                    solver = _get_solver()
-                    nodes, times = _get_big_ray(rays, caustic, iR, iA, solver)
+                # Setting line source
+                thindex = np.nonzero(nodes[1, :, 1] - nodes[0, :, 1] < S)[0]
+                r1 = thindex[thindex.size - 2 - np.argmin(np.diff(np.flip(thindex)))]   # first r-value where big ray contains a tolerable number of nodes
+                solver.traveltime.values[r1, nodes[0, r1, 1] : nodes[1, r1, 1], 0] = self.travel_time_fields['early'].values[r1, nodes[0, r1, 1] : nodes[1, r1, 1], 0]
+                solver.known[:r1, nodes[0, r1, 1] : nodes[1, r1, 1], 0] = True
+                for z_ind in range(nodes[0, r1, 1], nodes[1, r1, 1]):
+                    solver.trial.push(r1, z_ind, 0)
+                
+                _set_boundary_condition(solver, nodes, times)
+                solver.solve_first_order()
+                _select_relevant_traveltimes(solver, nodes)
 
-                    # Setting line source
-                    thindex = np.nonzero(nodes[1, :, 1] - nodes[0, :, 1] < S)[0]
-                    r1 = thindex[thindex.size - 2 - np.argmin(np.diff(np.flip(thindex)))]   # first r-value where big ray contains a tolerable number of nodes
-                    solver.traveltime.values[r1, nodes[0, r1, 1] : nodes[1, r1, 1], 0] = self.travel_time_fields['early'].values[r1, nodes[0, r1, 1] : nodes[1, r1, 1], 0]
-                    solver.known[:r1, nodes[0, r1, 1] : nodes[1, r1, 1], 0] = True
-                    for z_ind in range(nodes[0, r1, 1], nodes[1, r1, 1]):
-                        solver.trial.push(r1, z_ind, 0)
-                    
-                    _set_boundary_condition(solver, nodes, times)
-                    solver.solve_first_order()
-                    _select_relevant_traveltimes(solver, nodes)
+                solvers = [solver]  # List to keep all solvers
+                big_ray_nodes = [nodes] # List to keep big ray at various resolutions
+                big_ray_times = [times] # List to keep raytracing traveltimes
 
-                    solvers = [solver]  # List to keep all solvers
-                    big_ray_nodes = [nodes] # List to keep big ray at various resolutions
-                    big_ray_times = [times] # List to keep raytracing traveltimes
+                # Adaptive mesh refinement: divide nodes into quarters where big rays get too thin
+                if np.count_nonzero(np.isfinite(solver.traveltime.values[-1, nodes[0, -1, 1] + 1 : nodes[1, -1, 1]])) == 0:
+                    thindex = thindex[np.logical_and(thindex > r1, thindex < self.num_pts_r - 1)]
+                    # Zoom in on pinch point
+                    while thindex.size > 0:
+                        old_solver = solvers[-1]
+                        old_nodes = big_ray_nodes[-1]
+                        solver = pykonal.EikonalSolver(coord_sys = 'cartesian')
 
-                    # Adaptive mesh refinement: divide nodes into quarters where big rays get too thin
-                    if np.count_nonzero(np.isfinite(solver.traveltime.values[-1, nodes[0, -1, 1] + 1 : nodes[1, -1, 1]])) == 0:
-                        thindex = thindex[np.logical_and(thindex > r1, thindex < self.num_pts_r - 1)]
-                        # Zoom in on pinch point
-                        while thindex.size > 0:
-                            old_solver = solvers[-1]
-                            old_nodes = big_ray_nodes[-1]
-                            solver = pykonal.EikonalSolver(coord_sys = 'cartesian')
+                        r0, rf = thindex.min(), thindex.max()    # First and last points (after turnover) where ray thickness is below our tolerance
+                        
+                        z0 = min(old_nodes[0, r0, 1], old_nodes[0, rf, 1]) - 1
+                        zf = max(old_nodes[1, r0, 1], old_nodes[1, rf, 1]) + 1
+                        
+                        if r0 == rf: # Correct for case where thindex contains one point
+                            rf += 1
 
-                            r0, rf = thindex.min(), thindex.max()    # First and last points (after turnover) where ray thickness is below our tolerance
-                            
-                            z0 = min(old_nodes[0, r0, 1], old_nodes[0, rf, 1]) - 1
-                            zf = max(old_nodes[1, r0, 1], old_nodes[1, rf, 1]) + 1
-                            
-                            if r0 == rf: # Correct for case where thindex contains one point
-                                rf += 1
+                        solver.velocity.min_coords = old_solver.velocity.nodes[r0, 0, 0, 0], old_solver.velocity.nodes[0, z0, 0, 1], 0
+                        solver.velocity.npts = 2 * (rf - r0) + 1, 2 * (zf - z0) + 1, 1
+                        solver.velocity.node_intervals = old_solver.velocity.node_intervals[0] / 2, old_solver.velocity.node_intervals[1] / 2, 1
 
-                            solver.velocity.min_coords = old_solver.velocity.nodes[r0, 0, 0, 0], old_solver.velocity.nodes[0, z0, 0, 1], 0
-                            solver.velocity.npts = 2 * (rf - r0) + 1, 2 * (zf - z0) + 1, 1
-                            solver.velocity.node_intervals = old_solver.velocity.node_intervals[0] / 2, old_solver.velocity.node_intervals[1] / 2, 1
+                        iorslice = ior(solver.traveltime.nodes[0, :, 0, 1])
+                        iordata = np.expand_dims(np.tile(iorslice, reps = (solver.velocity.npts[0], 1)), axis = -1)
+                        solver.velocity.values = c / 1e9 / iordata
 
-                            iorslice = ior(solver.traveltime.nodes[0, :, 0, 1])
-                            iordata = np.expand_dims(np.tile(iorslice, reps = (solver.velocity.npts[0], 1)), axis = -1)
-                            solver.velocity.values = c / 1e9 / iordata
+                        # Get big ray
+                        nodes, times = _get_big_ray(rays, caustic, iR, iA, solver)
+                        big_ray_nodes.append(nodes)
+                        big_ray_times.append(times)
 
-                            # Get big ray
-                            nodes, times = _get_big_ray(rays, caustic, iR, iA, solver)
-                            big_ray_nodes.append(nodes)
-                            big_ray_times.append(times)
+                        # Set line source
+                        source = np.squeeze(solver.traveltime.nodes[0])
+                        solver.traveltime.values[0, :, 0] = old_solver.traveltime.resample(source, null = np.inf)
+                        solver.known[0] = True
+                        for z_ind in range(nodes[0, 0, 1], nodes[1, 0, 1]):
+                            solver.trial.push(0, z_ind, 0)
 
-                            # Set line source
-                            source = np.squeeze(solver.traveltime.nodes[0])
-                            solver.traveltime.values[0, :, 0] = old_solver.traveltime.resample(source, null = np.inf)
-                            solver.known[0] = True
-                            for z_ind in range(nodes[0, 0, 1], nodes[1, 0, 1]):
-                                solver.trial.push(0, z_ind, 0)
+                        _set_boundary_condition(solver, nodes, times)
+                        bounds_count = np.count_nonzero(np.isfinite(solver.traveltime.values[-1, nodes[0, -1, 1] : nodes[1, -1, 1]]))
+                        solver.solve_first_order()
 
-                            _set_boundary_condition(solver, nodes, times)
-                            bounds_count = np.count_nonzero(np.isfinite(solver.traveltime.values[-1, nodes[0, -1, 1] : nodes[1, -1, 1]]))
-                            solver.solve()
+                        _select_relevant_traveltimes(solver, nodes)
+                        solvers.append(solver)
 
-                            _select_relevant_traveltimes(solver, nodes)
-                            solvers.append(solver)
+                        thindex = np.array(np.nonzero(nodes[1, :, 1] - nodes[0, :, 1] <= S)) # Reset thindex with new mesh size
 
-                            thindex = np.array(np.nonzero(nodes[1, :, 1] - nodes[0, :, 1] <= S)) # Reset thindex with new mesh size
+                        # Check if solution has successfully propagated through pinch point
+                        if np.count_nonzero(np.isfinite(solver.traveltime.values[-1, nodes[0, -1, 1] : nodes[1, -1, 1]])) > bounds_count:
+                            break
 
-                            # Check if solution has successfully propagated through pinch point
-                            if np.count_nonzero(np.isfinite(solver.traveltime.values[-1, nodes[0, -1, 1] : nodes[1, -1, 1]])) > bounds_count:
-                                break
+                    # Return to normal mesh size (zoom out)
+                    solvers.reverse()
+                    big_ray_nodes.reverse()
+                    big_ray_times.reverse()
 
-                        # Return to normal mesh size (zoom out)
-                        solvers.reverse()
-                        big_ray_nodes.reverse()
-                        big_ray_times.reverse()
+                    for iS in range(1, len(solvers)):
+                        solver, old_solver = solvers[iS], solvers[iS - 1]
+                        nodes, old_nodes = big_ray_nodes[iS], big_ray_nodes[iS - 1]
+                        times = big_ray_times[iS]
 
-                        for iS in range(1, len(solvers)):
-                            solver, old_solver = solvers[iS], solvers[iS - 1]
-                            nodes, old_nodes = big_ray_nodes[iS], big_ray_nodes[iS - 1]
-                            times = big_ray_times[iS]
+                        r0, zf = self._coord_to_node([old_solver.vv.max_coords[:-1]], solver)[0, :-1]
+                        z0 = self._coord_to_node([old_solver.vv.min_coords[:-1]], solver)[0, 1]
+                        solver.traveltime.values[r0, z0 : zf + 1] = old_solver.traveltime.values[-1, ::2]
+                        solver.known[r0] = True
+                        for z_ind in range(nodes[0, r0, 1], nodes[1, r0, 1]):
+                            solver.trial.push(r0, z_ind, 0)
 
-                            r0, zf = self._coord_to_node([old_solver.vv.max_coords[:-1]], solver)[0, :-1]
-                            z0 = self._coord_to_node([old_solver.vv.min_coords[:-1]], solver)[0, 1]
-                            solver.traveltime.values[r0, z0 : zf + 1] = old_solver.traveltime.values[-1, ::2]
-                            solver.known[r0] = True
-                            for z_ind in range(nodes[0, r0, 1], nodes[1, r0, 1]):
-                                solver.trial.push(r0, z_ind, 0)
+                        _set_boundary_condition(solver, nodes, times)
+                        solver.solve_first_order()
+                        _select_relevant_traveltimes(solver, nodes)
 
-                            _set_boundary_condition(solver, nodes, times)
-                            solver.solve()
-                            _select_relevant_traveltimes(solver, nodes)
+                # Build big ray map (interpolate finer solvers back onto original mesh)
+                big_ray_map = np.full((self.num_pts_r, self.num_pts_z, 1), np.inf)
+                r = np.linspace(self.domain_start[0], self.domain_end[0], self.domain_shape[0])
+                z = np.linspace(self.domain_start[1], self.domain_end[1], self.domain_shape[1])
+                eval_at = np.moveaxis(np.array(np.meshgrid(r, z, np.array([0]), indexing = "ij")), 0, -1)
 
-                    # Build big ray map (interpolate finer solvers back onto original mesh)
-                    big_ray_map = np.full((self.num_pts_r, self.num_pts_z, 1), np.inf)
-                    r = np.linspace(self.domain_start[0], self.domain_end[0], self.domain_shape[0])
-                    z = np.linspace(self.domain_start[1], self.domain_end[1], self.domain_shape[1])
-                    eval_at = np.moveaxis(np.array(np.meshgrid(r, z, np.array([0]), indexing = "ij")), 0, -1)
-
-                    for solver in solvers:
-                        points = solver.traveltime.nodes[:, 0, 0, 0], solver.traveltime.nodes[0, :, 0, 1], solver.traveltime.nodes[0, 0, :, 2]
-                        if solver == solvers[-1]:    # Initial solver is always on full domain; no interpolation necessary
-                            big_ray_map[~np.isfinite(big_ray_map)] = solver.traveltime.values[~np.isfinite(big_ray_map)]
-                        else:
-                            values = np.copy(solver.traveltime.values)
-                            big_ray_map[~np.isfinite(big_ray_map)] = interpn(points, values, eval_at, bounds_error = False, fill_value = np.inf)[~np.isfinite(big_ray_map)]  
-                    
-                    self.travel_time_fields['late'].values[~np.isfinite(self.travel_time_fields['late'].values)] = big_ray_map[:, :boundary_z_ind + 1][~np.isfinite(self.travel_time_fields['late'].values)]
-            return True
+                for solver in solvers:
+                    points = solver.traveltime.nodes[:, 0, 0, 0], solver.traveltime.nodes[0, :, 0, 1], solver.traveltime.nodes[0, 0, :, 2]
+                    if solver == solvers[-1]:    # Initial solver is always on full domain; no interpolation necessary
+                        big_ray_map[~np.isfinite(big_ray_map)] = solver.traveltime.values[~np.isfinite(big_ray_map)]
+                    else:
+                        values = np.copy(solver.traveltime.values)
+                        big_ray_map[~np.isfinite(big_ray_map)] = interpn(points, values, eval_at, bounds_error = False, fill_value = np.inf)[~np.isfinite(big_ray_map)]  
+                
+                self.travel_time_fields['late'].values[~np.isfinite(self.travel_time_fields['late'].values)] = big_ray_map[:, :boundary_z_ind + 1][~np.isfinite(self.travel_time_fields['late'].values)]
+        return True
 
     def get_ind(self, coord):
         return np.transpose(self._coord_to_node(coord))        

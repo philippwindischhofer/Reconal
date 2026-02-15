@@ -5,7 +5,7 @@ def get_grazing_angle(src, ior, z_turnover):
     """
     Returns angle (in degrees) such that turnover occurs at reflection depth.
     """
-    z_turnover -= 0.5   # small numerical tolerance to account for fact that raytracer can overshoot
+    z_turnover -= 1   # small numerical tolerance to account for fact that raytracer can overshoot
     if ior(z_turnover) <= ior(src[1]):
         theta = np.arcsin(ior(z_turnover) / ior(src[1])) # Snell's law
         return np.degrees(theta)
