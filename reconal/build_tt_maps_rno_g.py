@@ -2,7 +2,7 @@ import argparse, os, warnings, defs
 from propagation import TravelTimeCalculator
 from detector import Detector
 
-def build_tt_maps_rno_g(outdir, channel_positions, z_min, z_max, r_max, num_pts_z, num_pts_r, ior_model, grad_ior_model, icestr, station_id, early_only, z_bounds):
+def build_tt_maps_rno_g(outdir, channel_positions, z_min, z_max, r_max, num_pts_z, num_pts_r, ior_model, grad_ior_model, station_id, early_only, z_bounds):
 
     for channel, xyz in channel_positions.items():
         ttc = TravelTimeCalculator(tx_z = xyz[2],
@@ -14,7 +14,7 @@ def build_tt_maps_rno_g(outdir, channel_positions, z_min, z_max, r_max, num_pts_
         ttc.set_ior_and_solve(ior_model, grad_ior_model, 20, z_bounds, early_only = early_only)
 
         outpath = os.path.join(outdir, f'st{station_id}_ch{channel}_table')
-        ttc.to_npz(outpath, icestr)
+        ttc.to_npz(outpath)
         print(f"Built travel time maps for channel {channel}")
 
 if __name__ == "__main__":
@@ -48,11 +48,9 @@ if __name__ == "__main__":
             raise ImportError('Missing NuRadioMC package')
         ior, grad_ior = defs.get_ior_from_nuradio(medium.greenland_simple())
         z_bounds = [0.0]
-        icestr = medium.greenland_simple.__name__ # Name of ice model for storage
     else:
         ior, grad_ior = defs.ior_exp3, defs.grad_ior_exp3
         z_bounds = [0.0, -14.9, -80.5]
-        icestr = 'ior3' # to match with c8 raytracer output
 
     if (args.dz > 0.5 or args.dr > 0.5) and not args.early_only:
         warnings.warn(f'Step sizes greater than 0.5 m may lead to refracted inaccuracies. Your step sizes are dr = {args.dr}, dz = {args.dz}.', category=RuntimeWarning)
@@ -63,4 +61,4 @@ if __name__ == "__main__":
     det = Detector(args.detectorpath)
     channel_positions = det.get_channel_positions(args.station_id, args.channels_to_include)
     build_tt_maps_rno_g(args.outdir, channel_positions, args.z_min, args.z_max, args.r_max, npts_z, npts_r,
-                        ior, grad_ior, icestr, args.station_id, args.early_only, z_bounds)
+                        ior, grad_ior, args.station_id, args.early_only, z_bounds)

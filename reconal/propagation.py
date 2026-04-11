@@ -1,6 +1,6 @@
 import pykonal, copy
 import numpy as np
-import ray_utils
+import defs, ray_utils
 from scipy.interpolate import interpn
 from scipy.constants import c
 
@@ -13,7 +13,29 @@ class TravelTimeCalculator:
         obj = cls(**indict)
         return obj
     
-    def __init__(self, tx_z, z_min, z_max, r_max, num_pts_z, num_pts_r, travel_time_maps = {}):
+    @classmethod
+    def FromNpz(cls, inpath):
+
+        with np.load(inpath) as indict:
+            
+            tx_z = indict['antennaz'][2]
+            r_max = indict['r_range_vals'][-1]
+            z_min, z_max = indict['z_range_vals'][[0, -1]]
+            num_pts_r = len(indict['r_range_vals'])
+            num_pts_z = len(indict['z_range_vals'])
+            ice_model = indict['icemodel']
+            
+            travel_time_maps = {}
+            for comp in 'early', 'late':
+                try:
+                    travel_time_maps[comp] = indict[comp]
+                except KeyError:
+                    pass
+        
+        obj = cls(tx_z, z_min, z_max, r_max, num_pts_z, num_pts_r, travel_time_maps, ice_model)
+        return obj
+    
+    def __init__(self, tx_z, z_min, z_max, r_max, num_pts_z, num_pts_r, travel_time_maps = {}, ice_model = None):
 
         self.tx_z = tx_z
         self.tx_pos = [0.0, self.tx_z]
@@ -39,9 +61,12 @@ class TravelTimeCalculator:
             for comp, tt_map in travel_time_maps.items():
                 self.travel_time_fields[comp] = pykonal.fields.ScalarField3D(coord_sys = 'cartesian')
                 self.travel_time_fields[comp].min_coords = self.domain_start[0], self.domain_start[1], 0
-                self.travel_time_fields[comp].npts = self.num_pts_r, self.num_pts_z, 1
+                self.travel_time_fields[comp].npts = tt_map.shape
                 self.travel_time_fields[comp].node_intervals = self.delta_r, self.delta_z, 1
                 self.travel_time_fields[comp].values = tt_map
+
+        if ice_model:
+            self.ice_model = ice_model
 
     def to_dict(self):        
         return copy.deepcopy({
@@ -54,22 +79,32 @@ class TravelTimeCalculator:
             "travel_time_maps": {comp: field.values for comp, field in self.travel_time_fields.items()}
         })
     
-    def to_npz(self, outpath, icemodel = 'greenland_simple'):
+    def to_npz(self, outpath):
         """
         Saves calculator metadata and traveltime maps to disk as .npz files.
         """
         r_range = np.linspace(0, self.r_max, self.num_pts_r, dtype = np.float32)
         z_range = np.linspace(self.z_min, self.z_max, self.num_pts_z, dtype = np.float32)
-
-        for comp in self.travel_time_fields:
+        
+        try:
             np.savez_compressed(
-                f'{outpath}_{comp}.npz', 
-                r_range_vals = r_range, 
+                f'{outpath}.npz',
+                antennaz = [0, 0, self.tx_z],
+                r_range_vals = r_range,
                 z_range_vals = z_range,
-                data = self.travel_time_fields[comp].values.astype(np.float32),
-                antennaz = self.tx_z,
-                icemodel = icemodel
-                )
+                early = self.travel_time_fields['early'].values.astype(np.float32),
+                late = self.travel_time_fields['late'].values.astype(np.float32),
+                icemodel = self.ice_model
+            )
+        except KeyError:    # only early maps
+            np.savez_compressed(
+                f'{outpath}.npz',
+                antennaz = [0, 0, self.tx_z],
+                r_range_vals = r_range,
+                z_range_vals = z_range,
+                early = self.travel_time_fields['early'].values.astype(np.float32),
+                icemodel = self.ice_model
+            )
     
     def set_ior_and_solve(self, ior, grad_ior, dtheta = 1.5, z_bounds = [0.0], early_only = False):
 
@@ -219,11 +254,17 @@ class TravelTimeCalculator:
                 max_z = max(nodes[1, r, 1], 0)
                 solver.traveltime.values[r, :min_z, 0] = np.inf
                 solver.traveltime.values[r, max_z + 1:, 0] = np.inf
-        
+
+        # Save details
+        if ior == defs.ior_exp3:
+            self.ice_model = 'ior3'
+        else:
+            self.ice_model = 'ior1'
+
         # Set up ray geometry
         src_ind = self._coord_to_pykonal([self.tx_pos])[0][1]
         boundary_z_ind = self._coord_to_pykonal([[0, z_bounds[0]]])[0][1]
-        caustic, critical_angles = ray_utils.get_caustic(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, z_bounds, step = self.delta_r)
+        caustic, critical_angles = ray_utils.get_caustic(self.tx_pos, ior, grad_ior, self.r_max, self.z_min, self.z_max, z_bounds, step = self.delta_r, early_only = early_only)
 
         # Calculate direct rays in the ice
         solver = _get_solver(point = True)
@@ -258,7 +299,7 @@ class TravelTimeCalculator:
         # Eliminate non-raytracing reflected solutions
         if caustic is not None: # Check that such solutions exist in our domain
             for node in szb_nodes:
-                self.travel_time_fields['early'].values[node[0], node[1]:] = np.inf
+                self.travel_time_fields['early'].values[node[0]:, node[1]] = np.inf
 
         if early_only:  # Save only earliest travel-times
             return True
@@ -340,9 +381,6 @@ class TravelTimeCalculator:
                         
                         z0 = min(old_nodes[0, r0, 1], old_nodes[0, rf, 1]) - 1
                         zf = max(old_nodes[1, r0, 1], old_nodes[1, rf, 1]) + 1
-                        
-                        if r0 == rf: # Correct for case where thindex contains one point
-                            rf += 1
 
                         solver.velocity.min_coords = old_solver.velocity.nodes[r0, 0, 0, 0], old_solver.velocity.nodes[0, z0, 0, 1], 0
                         solver.velocity.npts = 2 * (rf - r0) + 1, 2 * (zf - z0) + 1, 1
@@ -418,13 +456,13 @@ class TravelTimeCalculator:
     def get_ind(self, coord):
         return np.transpose(self._coord_to_node(coord))        
 
-    def get_travel_time_map(self, comp = "direct"):
+    def get_travel_time_map(self, comp = "early"):
         """
         Returns full traveltime map as numpy array, without metadata.
         """
         return self.travel_time_fields[comp].values
 
-    def get_travel_time(self, coord, comp = "direct", order = "first"):
+    def get_travel_time(self, coord, comp = "early", order = "first"):
         """
         Approximates traveltimes at arbitrary coordinates in computational domain.
         First-order approximation is a convenience wrapper around `pykonal.fields.ScalarField3D.resample()`.
@@ -434,7 +472,7 @@ class TravelTimeCalculator:
         coord : ndarray (n, 2)
             Coordinates at which to sample traveltime field (order is arbitrary).
         comp : str, optional
-            Map component to sample from. Defaults to 'direct'.
+            Map component to sample from. Defaults to 'early'.
         order : str, optional
             Defaults to 'first'. Must be one of the following:
                 * 'first': Bilinear interpolation for traveltime at specified coordinate.
@@ -462,13 +500,13 @@ class TravelTimeCalculator:
         except KeyError:
             raise KeyError(f"Error: map for component '{comp}' not available!")
 
-    def get_travel_time_ind(self, ind, comp = "direct"):
+    def get_travel_time_ind(self, ind, comp = "early"):
         """
         Returns traveltime at index position in map.
         """
         return self.travel_time_fields[comp].values[*ind]
     
-    def get_tangent_vector(self, coord, comp = "direct", order = "first", unit = False):
+    def get_tangent_vector(self, coord, comp = "early", order = "first", unit = False):
         """
         Approximates ray tangent vector at arbitrary coordinates in computational domain using
         traveltime field gradient. First-order approximation uses bilinear interpolation from
@@ -476,10 +514,10 @@ class TravelTimeCalculator:
 
         Parameters
         __________
-        coord : ndarray (n, 2)
+        coord : ndarray (n, 2) or (2,)
             Coordinates at which to sample gradient (order is arbitrary).
         comp : str, optional
-            Map component to sample from. Defaults to 'direct'.
+            Map component to sample from. Defaults to 'early'.
         order : str, optional
             Defaults to 'first'. Must be one of the following:
                 * 'first': Bilinear interpolation for gradient at specified coordinate.
@@ -519,7 +557,7 @@ class TravelTimeCalculator:
         else:
             return grad
 
-    def get_gradient_ind(self, ind, comp = "direct"):
+    def get_gradient_ind(self, ind, comp = "early"):
         """
         Returns gradient of traveltime field at index position in map.
         """

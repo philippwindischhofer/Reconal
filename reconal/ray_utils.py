@@ -133,7 +133,7 @@ def get_edge(rays, turnover, rmax, step, which = 'upper'):
     
     return edge.swapaxes(0, 1)
 
-def get_caustic(src, ior, grad_ior, rmax, zmin, zmax, z_bounds = [0.0], step = 1.0):
+def get_caustic(src, ior, grad_ior, rmax, zmin, zmax, z_bounds = [0.0], step = 1.0, early_only = False):
     """
     Returns simple or swallowtail caustic (including shadow zone boundary).
     """
@@ -150,11 +150,13 @@ def get_caustic(src, ior, grad_ior, rmax, zmin, zmax, z_bounds = [0.0], step = 1
     # The SZB is always part of the caustic; find this first
     ray_mesh = np.linspace(critical_angles[0], critical_angles[-1] - tol, 100)
     rays, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, ray_mesh, step)
-    
-    if np.isnan(turnover[0]).all(): # Domain too small to include caustic
+    if turnover[0] is None: # Domain too small to include caustic
         return None
 
     caustic[0] = get_edge(rays, turnover, rmax, step)
+
+    if early_only:
+        return caustic, critical_angles
     
     if len(z_bounds) > 1 and src[1] < z_bounds[-1]: # 3-layer exponential produces a swallowtail caustic at certain depths.
 
