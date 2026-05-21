@@ -180,7 +180,6 @@ def get_ior_from_nuradio(ice):
             pts = np.array((np.full_like(z, 0), np.full_like(z, 0), z)).swapaxes(0, 1)
             return ice.get_gradient_of_index_of_refraction(pts)[:, 2]
         else:
-            return ice.get_gradient_of_index_of_refraction(np.array([[0, 0, 1], [0, 0, z]]))[1, 2]  # Workaround for NuRadio bug
-            # return ice.get_gradient_of_index_of_refraction([0, 0, z])[2]
+            return ice.get_gradient_of_index_of_refraction([0, 0, z])[2]
 
     return iorfunc, grad_iorfunc

@@ -1,6 +1,6 @@
 import pykonal, copy
 import numpy as np
-import defs, ray_utils
+from . import defs, ray_utils
 from scipy.interpolate import interpn
 from scipy.constants import c
 
@@ -287,14 +287,14 @@ class TravelTimeCalculator:
 
         # Calculate rays transmitted into the air
         solver = _get_solver()
-        solver.traveltime.values[:, boundary_z_ind, :] = self.travel_time_fields['early'].values[:, boundary_z_ind, :]
+        solver.traveltime.values[:, :boundary_z_ind + 1] = self.travel_time_fields['early'].values[:, :boundary_z_ind + 1]
         solver.unknown[:, boundary_z_ind] = False
-        solver.known[:, :boundary_z_ind] = True
+        solver.known[:, :boundary_z_ind + 1] = True
         for r_ind in range(self.num_pts_r):
             solver.trial.push(r_ind, boundary_z_ind, 0)
         solver.solve()
 
-        self.travel_time_fields['early'].values[:, boundary_z_ind + 1:] = solver.traveltime.values[:, boundary_z_ind + 1:]
+        self.travel_time_fields['early'].values[:, boundary_z_ind:] = solver.traveltime.values[:, boundary_z_ind:]
 
         # Eliminate non-raytracing reflected solutions
         if caustic is not None: # Check that such solutions exist in our domain
@@ -565,6 +565,41 @@ class TravelTimeCalculator:
             return self.travel_time_fields[comp].gradient.values[*ind][..., :-1]
         except KeyError:
             raise KeyError(f"Error: map for component '{comp}' not available!")
+        
+    def trace_ray(self, coord, comp = "early"):
+        """
+        Returns ray path starting from `coord` and ending at receiver. NOT YET STABLE WITH REFRACTED RAY PATHS (i.e., may throw an error on parts of the late map).
+
+        Parameters
+        __________
+        coord : ndarray (N, 2) or (2,)
+            Starting points (interaction locations) of the rays to trace to the antenna.
+        comp : str, optional
+            Map component to trace through. Defaults to 'early'.
+
+        Returns
+        _______
+        ray : list or ndarray (n, 2)
+            Ray paths connecting `coord` and antenna. Returns a list of paths if multiple coordinates were passed in. Otherwise, returns one path as an `ndarray`.
+        """
+        try:
+            if coord.ndim == 1:
+                ray = self.travel_time_fields[comp].trace_ray(coord)
+                if comp == 'late':
+                    ray = np.concatenate((self.travel_time_fields['early'].trace_ray(ray[0]), ray))
+                ray = np.flip(ray, axis = 0)  # so ray starts from source and ends at antenna
+                ray = ray[:, :2]
+            else:
+                ray = []
+                for c in coord:
+                    r = self.travel_time_fields[comp].trace_ray(c)
+                    if comp == 'late':
+                        r = np.concatenate((self.travel_time_fields['early'].trace_ray(r[0]), r))
+                    r = np.flip(r[:, :2], axis = 0)
+                    ray.append(r)
+        except KeyError:
+            raise KeyError(f"Error: map for component '{comp}' not available!")
+        return ray
     
     def _coord_to_pykonal(self, coord, solver = None):
         return tuple(self._coord_to_node(coord, solver))

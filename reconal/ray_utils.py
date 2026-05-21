@@ -151,7 +151,7 @@ def get_caustic(src, ior, grad_ior, rmax, zmin, zmax, z_bounds = [0.0], step = 1
     ray_mesh = np.linspace(critical_angles[0], critical_angles[-1] - tol, 100)
     rays, turnover = get_rays(src, ior, grad_ior, rmax, zmin, zmax, ray_mesh, step)
     if turnover[0] is None: # Domain too small to include caustic
-        return None
+        return None, None
 
     caustic[0] = get_edge(rays, turnover, rmax, step)
 
